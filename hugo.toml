@@ -1,0 +1,35 @@
+ baseURL = "https://0xssriv.github.io/"
+  languageCode = "en-us"
+  title = "0xssriv's Writeups"
+  theme = "PaperMod"
+  paginate = 10
+
+  [params]
+    description = "Vulnerability research, CVE write-ups, and exploit analysis."
+    author = "Saumya Srivastava"
+    ShowReadingTime = false
+    ShowShareButtons = false
+    ShowPostNavLinks = true
+    ShowBreadCrumbs = true
+    ShowCodeCopyButtons = true
+    defaultTheme = "dark"
+
+  [params.cover]
+    hidden = false
+    hiddenInList = false
+    hiddenInSingle = false
+
+  [menu]
+    [[menu.main]]
+      name = "Home"
+      url = "/"
+      weight = 1
+    [[menu.main]]
+      name = "Articles"
+      url = "/posts/"
+      weight = 2
+    [[menu.main]]
+      name = "About"
+      url = "/about/"
+      weight = 3
+
