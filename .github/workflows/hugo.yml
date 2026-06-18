@@ -1,6 +1,16 @@
 name: Deploy Hugo Site to GitHub Pages
 
 on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy"
+        required: true
+        default: "dev"
+      debug:
+        description: "Enable debug logging"
+        required: false
+        default: "false"
   push:
     branches:
       - main
