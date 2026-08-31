@@ -1,29 +1,186 @@
-<!doctype html><html lang=en dir=auto data-theme=dark><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Building d8 From Source | 0xssriv's Writeups</title><meta name=keywords content><meta name=description content="Introduction
-If you are looking to get into browser security, and specifically, into the research of javascript engines, and even more specifically, into the research of Chrome V8, then one of the major tools that must be in your toolbox for this is the debug build of the V8 Javascript engine, which is called d8. d8 offers various auxiliary utilities specifically for debugging and studying v8 internals, such as native functions, which allow you to get information on object memory layout and addresses , JIT optimizations and deoptimizations, bytecodes and so forth. In this article, we will look at the process for building d8 from source and explore the various build options for it."><meta name=author content="Saumya Srivastava"><link rel=canonical href=https://0xssriv.github.io/posts/browser_security/v8engine/building_d8_from_source/><link crossorigin=anonymous href=/assets/css/stylesheet.cd9298b33628769aa1bc1acebbbfd7aa11ce81dfe03484d479e1907760249a1d.css integrity="sha256-zZKYszYodpqhvBrOu7/XqhHOgd/gNITUeeGQd2Akmh0=" rel="preload stylesheet" as=style><link rel=icon href=https://0xssriv.github.io/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://0xssriv.github.io/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://0xssriv.github.io/favicon-32x32.png><link rel=apple-touch-icon href=https://0xssriv.github.io/apple-touch-icon.png><link rel=mask-icon href=https://0xssriv.github.io/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://0xssriv.github.io/posts/browser_security/v8engine/building_d8_from_source/><noscript><style>#theme-toggle,.top-link{display:none}</style></noscript><script>localStorage.getItem("pref-theme")==="light"&&(document.querySelector("html").dataset.theme="light")</script><meta property="og:url" content="https://0xssriv.github.io/posts/browser_security/v8engine/building_d8_from_source/"><meta property="og:site_name" content="0xssriv's Writeups"><meta property="og:title" content="Building d8 From Source"><meta property="og:description" content="Introduction If you are looking to get into browser security, and specifically, into the research of javascript engines, and even more specifically, into the research of Chrome V8, then one of the major tools that must be in your toolbox for this is the debug build of the V8 Javascript engine, which is called d8. d8 offers various auxiliary utilities specifically for debugging and studying v8 internals, such as native functions, which allow you to get information on object memory layout and addresses , JIT optimizations and deoptimizations, bytecodes and so forth. In this article, we will look at the process for building d8 from source and explore the various build options for it."><meta property="og:locale" content="en_us"><meta property="og:type" content="article"><meta property="article:section" content="posts"><meta property="article:published_time" content="2026-06-11T13:46:53-04:00"><meta property="article:modified_time" content="2026-06-11T13:46:53-04:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Building d8 From Source"><meta name=twitter:description content="Introduction If you are looking to get into browser security, and specifically, into the research of javascript engines, and even more specifically, into the research of Chrome V8, then one of the major tools that must be in your toolbox for this is the debug build of the V8 Javascript engine, which is called d8. d8 offers various auxiliary utilities specifically for debugging and studying v8 internals, such as native functions, which allow you to get information on object memory layout and addresses , JIT optimizations and deoptimizations, bytecodes and so forth. In this article, we will look at the process for building d8 from source and explore the various build options for it."><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Posts","item":"https://0xssriv.github.io/posts/"},{"@type":"ListItem","position":2,"name":"Building d8 From Source","item":"https://0xssriv.github.io/posts/browser_security/v8engine/building_d8_from_source/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Building d8 From Source","name":"Building d8 From Source","description":"Introduction If you are looking to get into browser security, and specifically, into the research of javascript engines, and even more specifically, into the research of Chrome V8, then one of the major tools that must be in your toolbox for this is the debug build of the V8 Javascript engine, which is called d8. d8 offers various auxiliary utilities specifically for debugging and studying v8 internals, such as native functions, which allow you to get information on object memory layout and addresses , JIT optimizations and deoptimizations, bytecodes and so forth. In this article, we will look at the process for building d8 from source and explore the various build options for it.\n","keywords":[],"articleBody":"Introduction If you are looking to get into browser security, and specifically, into the research of javascript engines, and even more specifically, into the research of Chrome V8, then one of the major tools that must be in your toolbox for this is the debug build of the V8 Javascript engine, which is called d8. d8 offers various auxiliary utilities specifically for debugging and studying v8 internals, such as native functions, which allow you to get information on object memory layout and addresses , JIT optimizations and deoptimizations, bytecodes and so forth. In this article, we will look at the process for building d8 from source and explore the various build options for it.\nSystem Requirements Google’s Official Chromium Build Instructions, states the system requirements to be x86-64 machine , with atleast 8GB of RAM, 16GB RAM being highly recommended, and if you are using and SSD, then set aside \u003e= 32 GB swap space in case of 8GB RAM and \u003e= 16 GB swap in case of 16GB RAM. As we are only interested in V8 and not the entire Chromium build, we need not worry about the higher system requirements.\nFor this walkthrough, d8 compilation is done on Ubuntu 24.04 virtual machine on VirtualBox which is assigned 4 CPU cores and 4 GB RAM, with 8GB of swap space. My host laptop has AMD Ryzen 7 CPU with 8 cores and has a RAM size of 8GB. If you have lesser number of cores, that is not an issue, however the build time will be quite long.\nInstall Basic Dependencies sudo apt update sudo apt install -y \\ git python3 pkg-config \\ build-essential curl \\ clang lld Getting The V8 Source Code Following V8’s official Checking Out The V8 Source Code, we install depot-tools and export its path.\ngit clone https://chromium.googlesource.com/chromium/tools/depot_tools.git Now export the depot_tools path to the PATH variable. You could either do it on the command line, or you can paste it in your .bashrc file and restart the terminal in case you are not completing the build in one sitting.\nexport PATH=/path/to/depot_tools:$PATH Now test if gclient is working, create a directory in which you want to clone the v8 code repository and then get the code.\ngclient mkdir v8build \u0026\u0026 cd v8build fetch v8 Wait for a while for the code and dependencies to be downloaded. After the download is complete, we are at this stage.\nAfter this, run gclient sync command.\ngclient sync Setup V8’s Bundled Clang For The Build V8 uses a specific version of Clang for compiling. If you do not have that specific version of clang, the build system will not be able to find the specific clang dependencies it needs and your build will abort. Fortunately, we do not have to manually match clang versions as the v8 repository already has clang tools in the tools/ folder which will fetch and download the specific clang that v8 will compile with. In the v8 source code directory run the following commands. To avoid version mismatch problems, it is best that you use this bundled clang.\npython3 tools/clang/scripts/update.py ls third_party/llvm-build/Release+Asserts/bin/clang third_party/llvm-build/Release+Asserts/bin/clang --version As we will see next, we will specify to the build system to use this bundled clang by is_clang = true option in the args.gn file.\nGenerate The Build Directory And Config File Using GN We can now proceed to generate the build directory where our final d8 binary will be generated. This is done by this command. Make sure you are within the v8 source code directory.\ngn gen out/debug The above command generates an out/debug folder in the v8 repository which contains the build configurations of v8. The particular file of interest in this folder is the args.gn file which specifies the v8 build configurations we would like to use. To automatically open the args.gn file in your text editor(vim in my case), run the command\ngn args out/debug You will see that the file is currently empty with just a comment. Here, we will place our build options.\nYou can see all the available build options with -\ngn args out/debug --list You can grep the output of the above command to look for the description of the specific option. Some of the important options here are -\nis_debug - Debug build of v8. However, note that this option will be set to false, because if this is set to true, then the built d8 binary will be very bloated due to lots of debugging symbols. Compiler optimizations will also be turned off which would mean that d8 will run significantly slower and will consume more memory when run, making it very inconvenient for repeated experminents and debugging sessions.\ndcheck_always_on - Enable the DCHECK V8 assertion macros. This is also very handy for debugging because failed assertions will trigger a crash dump on screen, allowing us to see where some unexpected behaviour has occured. This will be set to true.\nsymbol_level / v8_symbol_level - Specifies the level of symbol information we would like to include in the build. Can be set to one of 0(no symbols or stripped) , 1(minimal symbols),2(regular symbols). The value 1 was chosen as it is lightweight considering the hardware limitations. Symbol level 2 includes full symbol information which can increase build times by quite a lot, so I did not go with this.\nis_component_build - Build the components majorly as shared libraries and keep static linkages low. This greatly reduces memory consumption spikes by the linker during the build, so this will be set to true. Due to this, after the build finishes, you would see a bunch of .so files along with the d8 binary.\nuse_custom_libcxx - Use the libcxx libraries in the third_party folder in the v8 repository and not the system C/C++ libraries. This option will also be set to true as it is best to use the libcxx that comes bundled with v8.\nis_clang - As mentioned before, when true, this enables use of the bundled clang.\nclang_use_chrome_plugins - This option is only true if we are using Chromium’s clang for the build. As we are not doing that, this will be false.\nv8_enable_object_print/v8_enable_disassembler/v8_enable_backtrace/v8_enable_verify_heap - All these options will be true. They pertain to the various debugging features, like object printing, backtracing and disassembly.\nv8_enable_sandbox/v8_enable_pointer_compression - These options will also be true. They pertain to v8 heap hardening.\nNow you can copy the following build options into the args.gn file\nis_debug = false dcheck_always_on = true symbol_level = 1 v8_symbol_level = 1 is_component_build = true use_custom_libcxx = true treat_warnings_as_errors = false # Use the bundled clang is_clang = true clang_use_chrome_plugins = false # This enables disassembly and object printing by native functions. A must have for research v8_enable_object_print = true v8_enable_disassembler = true v8_enable_backtrace = true v8_enable_verify_heap = true # Harden the d8 build by enabling the v8 heap sandbox and pointer compression v8_enable_sandbox = true v8_enable_pointer_compression = true # These are not necessary v8_enable_i18n_support = false v8_static_library = false # Target architecture is of course 64-bit x86 target_cpu = \"x64\" Now, once you copy and save the args.gn file and quit the editor, you will see the following output\nCreate The 8GB Swap Space V8’s linker jobs can consume significant RAM. So, we need to give some extra legroom to the linker jobs to swap out in case the RAM is less. If we do not do this, heavy linker jobs may end up causing Out Of Memory (OOM) error in the VM, causing VirtualBox to terminate the VM in between the build. So, before starting the build, we will create an 8GB swap file and enable it.\nRun the following commands in the terminal\nsudo fallocate -l 8G /swapfile sudo chmod 600 /swapfile sudo mkswap /swapfile sudo swapon /swapfile echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab To verify that the swap file is enabled, run\nswapon --show and see if /swapfile shows up with 8G of size.\nOkay, Lets Roll Now! Now that we have our swap space and the build arguments and necessary toolchains set up, we can start the D8 compilation. In your host machine, make sure you do not have unnecessary background proceses running, and preferably, you can turn off the internet connection to reduce the effects of the background processes that make network requests.\nIn the v8’s source code directory, run the following command.\nautoninja -C out/debug d8 -j3 In the above command, we specifically tell ninja to build the d8 target in the out/debug folder using the build options that are specified in the args.gn file there and limit the ninja jobs to atmost 3. Now you should see a screen like this, indicating that the compilation has started.\nThis will take roughly 2 hours to build. Once the build completes, you will see this.\nThe built d8 binary is now in the out/debug folder. You can now remove the 8GB swapfile that you had set up before starting the build.\nFinally… And there you have it! Now you can debug and study the various features and components that make v8 tick.\n","wordCount":"1516","inLanguage":"en","datePublished":"2026-06-11T13:46:53-04:00","dateModified":"2026-06-11T13:46:53-04:00","author":{"@type":"Person","name":"Saumya Srivastava"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://0xssriv.github.io/posts/browser_security/v8engine/building_d8_from_source/"},"publisher":{"@type":"Organization","name":"0xssriv's Writeups","logo":{"@type":"ImageObject","url":"https://0xssriv.github.io/favicon.ico"}}}</script></head><body id=top><header class=header><nav class=header-nav><div class=logo><a href=https://0xssriv.github.io/ accesskey=h title="0xssriv's Writeups (Alt + H)">0xssriv's Writeups</a><div class=logo-switches><button id=theme-toggle class=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
-<svg class="moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-<svg class="sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu class=menu><li><a href=https://0xssriv.github.io/ title=Home><span>Home</span></a></li><li><a href=https://0xssriv.github.io/posts/ title=Articles><span>Articles</span></a></li><li><a href=https://0xssriv.github.io/about/ title=About><span>About</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><nav class=breadcrumbs role=navigation aria-label=Breadcrumb><a href=/>Home</a>
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
-<a href=/posts/>Posts</a>
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg></nav><h1 class="post-title entry-hint-parent">Building d8 From Source</h1><div class=post-meta><span title='2026-06-11 13:46:53 -0400 EDT'>June 11, 2026</span>&nbsp;·&nbsp;<span>Saumya Srivastava</span></div></header><div class="post-content md-content"><h2 id=introduction>Introduction<a hidden class=anchor aria-hidden=true href=#introduction>#</a></h2><p>If you are looking to get into browser security, and specifically, into the research of javascript engines, and even more specifically, into the research of Chrome V8, then one of the major tools that must be in your toolbox for this is the debug build of the V8 Javascript engine, which is called d8. d8 offers various auxiliary utilities specifically for debugging and studying v8 internals, such as native functions, which allow you to get information on object memory layout and addresses , JIT optimizations and deoptimizations, bytecodes and so forth. In this article, we will look at the process for building d8 from source and explore the various build options for it.</p><h2 id=system-requirements>System Requirements<a hidden class=anchor aria-hidden=true href=#system-requirements>#</a></h2><p><a href=https://chromium.googlesource.com/chromium/src/+/main/docs/linux/build_instructions.md>Google&rsquo;s Official Chromium Build Instructions</a>, states the system requirements to be x86-64 machine , with atleast 8GB of RAM, 16GB RAM being highly recommended, and if you are using and SSD, then set aside >= 32 GB swap space in case of 8GB RAM and >= 16 GB swap in case of 16GB RAM. As we are only interested in V8 and not the entire Chromium build, we need not worry about the higher system requirements.</p><p>For this walkthrough, d8 compilation is done on Ubuntu 24.04 virtual machine on VirtualBox which is assigned 4 CPU cores and 4 GB RAM, with 8GB of swap space. My host laptop has AMD Ryzen 7 CPU with 8 cores and has a RAM size of 8GB. If you have lesser number of cores, that is not an issue, however the build time will be quite long.</p><h2 id=install-basic-dependencies>Install Basic Dependencies<a hidden class=anchor aria-hidden=true href=#install-basic-dependencies>#</a></h2><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>sudo apt update
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>sudo apt install -y <span style=color:#ae81ff>\
-</span></span></span><span style=display:flex><span>    git python3 pkg-config <span style=color:#ae81ff>\
-</span></span></span><span style=display:flex><span>    build-essential curl <span style=color:#ae81ff>\
-</span></span></span><span style=display:flex><span>    clang lld
-</span></span></code></pre></div><h2 id=getting-the-v8-source-code>Getting The V8 Source Code<a hidden class=anchor aria-hidden=true href=#getting-the-v8-source-code>#</a></h2><p>Following V8&rsquo;s official <a href=https://v8.dev/docs/source-code>Checking Out The V8 Source Code</a>, we install depot-tools and export its path.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-</span></span></code></pre></div><p>Now export the depot_tools path to the PATH variable. You could either do it on the command line, or you can paste it in your .bashrc file and restart the terminal in case you are not completing the build in one sitting.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>export PATH<span style=color:#f92672>=</span>/path/to/depot_tools:$PATH
-</span></span></code></pre></div><p>Now test if gclient is working, create a directory in which you want to clone the v8 code repository and then get the code.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>gclient
-</span></span><span style=display:flex><span>mkdir v8build <span style=color:#f92672>&amp;&amp;</span> cd v8build
-</span></span><span style=display:flex><span>fetch v8
-</span></span></code></pre></div><p>Wait for a while for the code and dependencies to be downloaded. After the download is complete, we are at this stage.</p><p><img alt="After V8 Code Fetching" loading=lazy src=/posts/browser_security/v8engine/building_d8_from_source/v8codeinstalled.png></p><p>After this, run gclient sync command.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>gclient sync
-</span></span></code></pre></div><h2 id=setup-v8s-bundled-clang-for-the-build>Setup V8&rsquo;s Bundled Clang For The Build<a hidden class=anchor aria-hidden=true href=#setup-v8s-bundled-clang-for-the-build>#</a></h2><p>V8 uses a specific version of Clang for compiling. If you do not have that specific version of clang, the build system will not be able to find the specific clang dependencies it needs and your build will abort. Fortunately, we do not have to manually match clang versions as the v8 repository already has clang tools in the tools/ folder which will fetch and download the specific clang that v8 will compile with. In the v8 source code directory run the following commands. To avoid version mismatch problems, it is best that you use this bundled clang.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>python3 tools/clang/scripts/update.py 
-</span></span><span style=display:flex><span>ls third_party/llvm-build/Release+Asserts/bin/clang
-</span></span><span style=display:flex><span>third_party/llvm-build/Release+Asserts/bin/clang --version
-</span></span></code></pre></div><p><img alt="V8&rsquo;s Bundled Clang Setup Terminal" loading=lazy src=/posts/browser_security/v8engine/building_d8_from_source/clang_setup.gif></p><p>As we will see next, we will specify to the build system to use this bundled clang by <strong>is_clang = true</strong> option in the args.gn file.</p><h2 id=generate-the-build-directory-and-config-file-using-gn>Generate The Build Directory And Config File Using GN<a hidden class=anchor aria-hidden=true href=#generate-the-build-directory-and-config-file-using-gn>#</a></h2><p>We can now proceed to generate the build directory where our final d8 binary will be generated. This is done by this command. Make sure you are within the v8 source code directory.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>gn gen out/debug
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="dark">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Building d8 From Source | 0xssriv&#39;s Writeups</title>
+<meta name="keywords" content="">
+<meta name="description" content="Introduction
+If you are looking to get into browser security, and specifically, into the research of javascript engines, and even more specifically, into the research of Chrome V8, then one of the major tools that must be in your toolbox for this is the debug build of the V8 Javascript engine, which is called d8. d8 offers various auxiliary utilities specifically for debugging and studying v8 internals, such as native functions, which allow you to get information on object memory layout and addresses , JIT optimizations and deoptimizations, bytecodes and so forth. In this article, we will look at the process for building d8 from source and explore the various build options for it.">
+<meta name="author" content="Saumya Srivastava">
+<link rel="canonical" href="http://localhost:1313/posts/browser_security/v8engine/building_d8_from_source/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.cd9298b33628769aa1bc1acebbbfd7aa11ce81dfe03484d479e1907760249a1d.css" integrity="sha256-zZKYszYodpqhvBrOu7/XqhHOgd/gNITUeeGQd2Akmh0=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/browser_security/v8engine/building_d8_from_source/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="header-nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="0xssriv&#39;s Writeups (Alt + H)">0xssriv&#39;s Writeups</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" class="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg class="moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg class="sun" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu" class="menu">
+            <li>
+                <a href="http://localhost:1313/" title="Home">
+                    <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/posts/" title="Articles">
+                    <span>Articles</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <nav class="breadcrumbs" role="navigation" aria-label="Breadcrumb">
+            <a href="/">Home</a>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right">
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+            <a href="/posts/">Posts</a>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right">
+        <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+</nav>
+    <h1 class="post-title entry-hint-parent">
+      Building d8 From Source
+    </h1>
+    <div class="post-meta">
+
+<span title='2026-06-11 13:46:53 -0400 EDT'>June 11, 2026</span>&nbsp;·&nbsp;<span>Saumya Srivastava</span>
+
+</div>
+  </header> 
+  <div class="post-content md-content"><h2 id="introduction">Introduction<a hidden class="anchor" aria-hidden="true" href="#introduction">#</a></h2>
+<p>If you are looking to get into browser security, and specifically, into the research of javascript engines, and even more specifically, into the research of Chrome V8, then one of the major tools that must be in your toolbox for this is the debug build of the V8 Javascript engine, which is called d8. d8 offers various auxiliary utilities specifically for debugging and studying v8 internals, such as native functions, which allow you to get information on object memory layout and addresses , JIT optimizations and deoptimizations, bytecodes and so forth. In this article, we will look at the process for building d8 from source and explore the various build options for it.</p>
+<h2 id="system-requirements">System Requirements<a hidden class="anchor" aria-hidden="true" href="#system-requirements">#</a></h2>
+<p><a href="https://chromium.googlesource.com/chromium/src/+/main/docs/linux/build_instructions.md">Google&rsquo;s Official Chromium Build Instructions</a>, states the system requirements to be x86-64 machine , with atleast 8GB of RAM, 16GB RAM being highly recommended, and if you are using and SSD, then set aside &gt;= 32 GB swap space in case of 8GB RAM and &gt;= 16 GB swap in case of 16GB RAM. As we are only interested in V8 and not the entire Chromium build, we need not worry about the higher system requirements.</p>
+<p>For this walkthrough, d8 compilation is done on Ubuntu 24.04 virtual machine on VirtualBox which is assigned 4 CPU cores and 4 GB RAM, with 8GB of swap space. My host laptop has AMD Ryzen 7 CPU with 8 cores and has a RAM size of 8GB. If you have lesser number of cores, that is not an issue, however the build time will be quite long.</p>
+<h2 id="install-basic-dependencies">Install Basic Dependencies<a hidden class="anchor" aria-hidden="true" href="#install-basic-dependencies">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo apt update
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>sudo apt install -y <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    git python3 pkg-config <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    build-essential curl <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    clang lld
+</span></span></code></pre></div><h2 id="getting-the-v8-source-code">Getting The V8 Source Code<a hidden class="anchor" aria-hidden="true" href="#getting-the-v8-source-code">#</a></h2>
+<p>Following V8&rsquo;s official <a href="https://v8.dev/docs/source-code">Checking Out The V8 Source Code</a>, we install depot-tools and export its path.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+</span></span></code></pre></div><p>Now export the depot_tools path to the PATH variable. You could either do it on the command line, or you can paste it in your .bashrc file and restart the terminal in case you are not completing the build in one sitting.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>export PATH<span style="color:#f92672">=</span>/path/to/depot_tools:$PATH
+</span></span></code></pre></div><p>Now test if gclient is working, create a directory in which you want to clone the v8 code repository and then get the code.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>gclient
+</span></span><span style="display:flex;"><span>mkdir v8build <span style="color:#f92672">&amp;&amp;</span> cd v8build
+</span></span><span style="display:flex;"><span>fetch v8
+</span></span></code></pre></div><p>Wait for a while for the code and dependencies to be downloaded. After the download is complete, we are at this stage.</p>
+<p><img alt="After V8 Code Fetching" loading="lazy" src="/posts/browser_security/v8engine/building_d8_from_source/v8codeinstalled.png"></p>
+<p>After this, run gclient sync command.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>gclient sync
+</span></span></code></pre></div><h2 id="setup-v8s-bundled-clang-for-the-build">Setup V8&rsquo;s Bundled Clang For The Build<a hidden class="anchor" aria-hidden="true" href="#setup-v8s-bundled-clang-for-the-build">#</a></h2>
+<p>V8 uses a specific version of Clang for compiling. If you do not have that specific version of clang, the build system will not be able to find the specific clang dependencies it needs and your build will abort. Fortunately, we do not have to manually match clang versions as the v8 repository already has clang tools in the tools/ folder which will fetch and download the specific clang that v8 will compile with. In the v8 source code directory run the following commands. To avoid version mismatch problems, it is best that you use this bundled clang.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>python3 tools/clang/scripts/update.py 
+</span></span><span style="display:flex;"><span>ls third_party/llvm-build/Release+Asserts/bin/clang
+</span></span><span style="display:flex;"><span>third_party/llvm-build/Release+Asserts/bin/clang --version
+</span></span></code></pre></div><p><img alt="V8&rsquo;s Bundled Clang Setup Terminal" loading="lazy" src="/posts/browser_security/v8engine/building_d8_from_source/clang_setup.gif"></p>
+<p>As we will see next, we will specify to the build system to use this bundled clang by <strong>is_clang = true</strong> option in the args.gn file.</p>
+<h2 id="generate-the-build-directory-and-config-file-using-gn">Generate The Build Directory And Config File Using GN<a hidden class="anchor" aria-hidden="true" href="#generate-the-build-directory-and-config-file-using-gn">#</a></h2>
+<p>We can now proceed to generate the build directory where our final d8 binary will be generated. This is done by this command. Make sure you are within the v8 source code directory.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>gn gen out/debug
 </span></span></code></pre></div><p>The above command generates an out/debug folder in the v8 repository which contains the build configurations of v8. The particular file of interest in this folder is the args.gn
-file which specifies the v8 build configurations we would like to use. To automatically open the args.gn file in your text editor(vim in my case), run the command</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>gn args out/debug
-</span></span></code></pre></div><p>You will see that the file is currently empty with just a comment. Here, we will place our build options.</p><p>You can see all the available build options with -</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>gn args out/debug --list
-</span></span></code></pre></div><p>You can grep the output of the above command to look for the description of the specific option. Some of the important options here are -</p><ul><li><p><strong>is_debug</strong> - Debug build of v8. However, note that this option will be set to false, because if this is set to true, then the built d8 binary will be very bloated due to lots of debugging symbols. Compiler optimizations will also be turned off which would mean that d8 will run significantly slower and will consume more memory when run, making it very inconvenient for repeated experminents and debugging sessions.</p></li><li><p><strong>dcheck_always_on</strong> - Enable the DCHECK V8 assertion macros. This is also very handy for debugging because failed assertions will trigger a crash dump on screen, allowing us to see where some unexpected behaviour has occured. This will be set to true.</p></li><li><p><strong>symbol_level / v8_symbol_level</strong> - Specifies the level of symbol information we would like to include in the build. Can be set to one of 0(no symbols or stripped) , 1(minimal symbols),2(regular symbols). The value 1 was chosen as it is lightweight considering the hardware limitations. Symbol level 2 includes full symbol information which can increase build times by quite a lot, so I did not go with this.</p></li><li><p><strong>is_component_build</strong> - Build the components majorly as shared libraries and keep static linkages low. This greatly reduces memory consumption spikes by the linker during the build, so this will be set to true. Due to this, after the build finishes, you would see a bunch of .so files along with the d8 binary.</p></li><li><p><strong>use_custom_libcxx</strong> - Use the libcxx libraries in the third_party folder in the v8 repository and not the system C/C++ libraries. This option will also be set to true as it is best to use the libcxx that comes bundled with v8.</p></li><li><p><strong>is_clang</strong> - As mentioned before, when true, this enables use of the bundled clang.</p></li><li><p><strong>clang_use_chrome_plugins</strong> - This option is only true if we are using Chromium&rsquo;s clang for the build. As we are not doing that, this will be false.</p></li><li><p><strong>v8_enable_object_print/v8_enable_disassembler/v8_enable_backtrace/v8_enable_verify_heap</strong> - All these options will be true. They pertain to the various debugging features, like object printing, backtracing and disassembly.</p></li><li><p><strong>v8_enable_sandbox/v8_enable_pointer_compression</strong> - These options will also be true. They pertain to v8 heap hardening.</p></li></ul><p>Now you can copy the following build options into the args.gn file</p><pre tabindex=0><code>is_debug = false
+file which specifies the v8 build configurations we would like to use. To automatically open the args.gn file in your text editor(vim in my case), run the command</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>gn args out/debug
+</span></span></code></pre></div><p>You will see that the file is currently empty with just a comment. Here, we will place our build options.</p>
+<p>You can see all the available build options with -</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>gn args out/debug --list
+</span></span></code></pre></div><p>You can grep the output of the above command to look for the description of the specific option. Some of the important options here are -</p>
+<ul>
+<li>
+<p><strong>is_debug</strong> - Debug build of v8. However, note that this option will be set to false, because if this is set to true, then the built d8 binary will be very bloated due to lots of debugging symbols. Compiler optimizations will also be turned off which would mean that d8 will run significantly slower and will consume more memory when run, making it very inconvenient for repeated experminents and debugging sessions.</p>
+</li>
+<li>
+<p><strong>dcheck_always_on</strong> - Enable the DCHECK V8 assertion macros. This is also very handy for debugging because failed assertions will trigger a crash dump on screen, allowing us to see where some unexpected behaviour has occured. This will be set to true.</p>
+</li>
+<li>
+<p><strong>symbol_level / v8_symbol_level</strong> - Specifies the level of symbol information we would like to include in the build. Can be set to one of 0(no symbols or stripped) , 1(minimal symbols),2(regular symbols). The value 1 was chosen as it is lightweight considering the hardware limitations. Symbol level 2 includes full symbol information which can increase build times by quite a lot, so I did not go with this.</p>
+</li>
+<li>
+<p><strong>is_component_build</strong> - Build the components majorly as shared libraries and keep static linkages low. This greatly reduces memory consumption spikes by the linker during the build, so this will be set to true. Due to this, after the build finishes, you would see a bunch of .so files along with the d8 binary.</p>
+</li>
+<li>
+<p><strong>use_custom_libcxx</strong> - Use the libcxx libraries in the third_party folder in the v8 repository and not the system C/C++ libraries. This option will also be set to true as it is best to use the libcxx that comes bundled with v8.</p>
+</li>
+<li>
+<p><strong>is_clang</strong> - As mentioned before, when true, this enables use of the bundled clang.</p>
+</li>
+<li>
+<p><strong>clang_use_chrome_plugins</strong> - This option is only true if we are using Chromium&rsquo;s clang for the build. As we are not doing that, this will be false.</p>
+</li>
+<li>
+<p><strong>v8_enable_object_print/v8_enable_disassembler/v8_enable_backtrace/v8_enable_verify_heap</strong> - All these options will be true. They pertain to the various debugging features, like object printing, backtracing and disassembly.</p>
+</li>
+<li>
+<p><strong>v8_enable_sandbox/v8_enable_pointer_compression</strong> - These options will also be true. They pertain to v8 heap hardening.</p>
+</li>
+</ul>
+<p>Now you can copy the following build options into the args.gn file</p>
+<pre tabindex="0"><code>is_debug = false
 dcheck_always_on = true
 
 symbol_level = 1
@@ -54,16 +211,168 @@ v8_static_library = false
 
 # Target architecture is of course 64-bit x86
 target_cpu = &#34;x64&#34;
-</code></pre><p>Now, once you copy and save the args.gn file and quit the editor, you will see the following output</p><p><img alt="Args established" loading=lazy src=/posts/browser_security/v8engine/building_d8_from_source/args_gen.png></p><h2 id=create-the-8gb-swap-space>Create The 8GB Swap Space<a hidden class=anchor aria-hidden=true href=#create-the-8gb-swap-space>#</a></h2><p>V8&rsquo;s linker jobs can consume significant RAM. So, we need to give some extra legroom to the linker jobs to swap out in case the RAM is less. If we do not do this, heavy linker jobs may end up causing Out Of Memory (OOM) error in the VM, causing VirtualBox to terminate the VM in between the build. So, before starting the build, we will create an 8GB swap file and enable it.</p><p>Run the following commands in the terminal</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>sudo fallocate -l 8G /swapfile
-</span></span><span style=display:flex><span>sudo chmod <span style=color:#ae81ff>600</span> /swapfile
-</span></span><span style=display:flex><span>sudo mkswap /swapfile
-</span></span><span style=display:flex><span>sudo swapon /swapfile
-</span></span><span style=display:flex><span>echo <span style=color:#e6db74>&#39;/swapfile none swap sw 0 0&#39;</span> | sudo tee -a /etc/fstab
-</span></span></code></pre></div><p>To verify that the swap file is enabled, run</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>swapon --show
-</span></span></code></pre></div><p>and see if /swapfile shows up with 8G of size.</p><h2 id=okay-lets-roll-now>Okay, Lets Roll Now!<a hidden class=anchor aria-hidden=true href=#okay-lets-roll-now>#</a></h2><p>Now that we have our swap space and the build arguments and necessary toolchains set up, we can start the D8 compilation. In your host machine, make sure you do not have unnecessary background proceses running, and preferably, you can turn off the internet connection to reduce the effects of the background processes that make network requests.</p><p>In the v8&rsquo;s source code directory, run the following
-command.</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>autoninja -C out/debug d8 -j3
-</span></span></code></pre></div><p>In the above command, we specifically tell ninja to build the d8 target in the out/debug folder using the build options that are specified in the args.gn file there and limit the ninja jobs to atmost 3. Now you should see a screen like this, indicating that the compilation has started.</p><p><img alt="Build Start" loading=lazy src=/posts/browser_security/v8engine/building_d8_from_source/build_start.png></p><p>This will take roughly 2 hours to build. Once the build completes, you will see this.</p><p><img alt="Build End" loading=lazy src=/posts/browser_security/v8engine/building_d8_from_source/build_end.png></p><p>The built d8 binary is now in the out/debug folder. You can now remove the 8GB swapfile that you had set up before starting the build.</p><h2 id=finally>Finally&mldr;<a hidden class=anchor aria-hidden=true href=#finally>#</a></h2><p><img alt="Using d8" loading=lazy src=/posts/browser_security/v8engine/building_d8_from_source/usingd8.gif></p><p>And there you have it! Now you can debug and study the various features and components that make v8 tick.</p></div><footer class=post-footer><ul class=post-tags></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://0xssriv.github.io/>0xssriv's Writeups</a></span> ·
-<span>Powered by
-<a href="https://gohugo.io/?utm_source=papermod" rel=noopener target=_blank>Hugo</a> &
-<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top id=top-link class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey=g><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
-</a><script>let menu=document.getElementById("menu");if(menu){const e=localStorage.getItem("menu-scroll-position");e&&(menu.scrollLeft=parseInt(e,10)),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}}document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var toplink=document.getElementById("top-link");window.onscroll=function(){const e=window.innerHeight;document.body.scrollTop>e||document.documentElement.scrollTop>e?toplink.classList.remove("hidden"):toplink.classList.add("hidden")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{const e=document.querySelector("html");e.dataset.theme==="dark"?(e.dataset.theme="light",localStorage.setItem("pref-theme","light")):(e.dataset.theme="dark",localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
+</code></pre><p>Now, once you copy and save the args.gn file and quit the editor, you will see the following output</p>
+<p><img alt="Args established" loading="lazy" src="/posts/browser_security/v8engine/building_d8_from_source/args_gen.png"></p>
+<h2 id="create-the-8gb-swap-space">Create The 8GB Swap Space<a hidden class="anchor" aria-hidden="true" href="#create-the-8gb-swap-space">#</a></h2>
+<p>V8&rsquo;s linker jobs can consume significant RAM. So, we need to give some extra legroom to the linker jobs to swap out in case the RAM is less. If we do not do this, heavy linker jobs may end up causing Out Of Memory (OOM) error in the VM, causing VirtualBox to terminate the VM in between the build. So, before starting the build, we will create an 8GB swap file and enable it.</p>
+<p>Run the following commands in the terminal</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo fallocate -l 8G /swapfile
+</span></span><span style="display:flex;"><span>sudo chmod <span style="color:#ae81ff">600</span> /swapfile
+</span></span><span style="display:flex;"><span>sudo mkswap /swapfile
+</span></span><span style="display:flex;"><span>sudo swapon /swapfile
+</span></span><span style="display:flex;"><span>echo <span style="color:#e6db74">&#39;/swapfile none swap sw 0 0&#39;</span> | sudo tee -a /etc/fstab
+</span></span></code></pre></div><p>To verify that the swap file is enabled, run</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>swapon --show
+</span></span></code></pre></div><p>and see if /swapfile shows up with 8G of size.</p>
+<h2 id="okay-lets-roll-now">Okay, Lets Roll Now!<a hidden class="anchor" aria-hidden="true" href="#okay-lets-roll-now">#</a></h2>
+<p>Now that we have our swap space and the build arguments and necessary toolchains set up, we can start the D8 compilation. In your host machine, make sure you do not have unnecessary background proceses running, and preferably, you can turn off the internet connection to reduce the effects of the background processes that make network requests.</p>
+<p>In the v8&rsquo;s source code directory, run the following
+command.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>autoninja -C out/debug d8 -j3
+</span></span></code></pre></div><p>In the above command, we specifically tell ninja to build the d8 target in the out/debug folder using the build options that are specified in the args.gn file there and limit the ninja jobs to atmost 3. Now you should see a screen like this, indicating that the compilation has started.</p>
+<p><img alt="Build Start" loading="lazy" src="/posts/browser_security/v8engine/building_d8_from_source/build_start.png"></p>
+<p>This will take roughly 2 hours to build. Once the build completes, you will see this.</p>
+<p><img alt="Build End" loading="lazy" src="/posts/browser_security/v8engine/building_d8_from_source/build_end.png"></p>
+<p>The built d8 binary is now in the out/debug folder. You can now remove the 8GB swapfile that you had set up before starting the build.</p>
+<h2 id="finally">Finally&hellip;<a hidden class="anchor" aria-hidden="true" href="#finally">#</a></h2>
+<p><img alt="Using d8" loading="lazy" src="/posts/browser_security/v8engine/building_d8_from_source/usingd8.gif"></p>
+<p>And there you have it! Now you can debug and study the various features and components that make v8 tick.</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">0xssriv&#39;s Writeups</a></span> · 
+
+    
+    
+    <span>
+        Powered by
+        <a href="https://gohugo.io/?utm_source=papermod" rel="noopener" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" id="top-link" class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up">
+        <polyline points="17 11 12 6 7 11"></polyline>
+        <polyline points="17 18 12 13 7 18"></polyline>
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var toplink = document.getElementById("top-link");
+    window.onscroll = function () {
+        const scrollThreshold = window.innerHeight;
+        if (document.body.scrollTop > scrollThreshold || document.documentElement.scrollTop > scrollThreshold) {
+            toplink.classList.remove("hidden");
+        } else {
+            toplink.classList.add("hidden");
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>
