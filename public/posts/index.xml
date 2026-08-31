@@ -1,2 +1,28 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Posts on 0xssriv's Writeups</title><link>https://0xssriv.github.io/posts/</link><description>Recent content in Posts on 0xssriv's Writeups</description><generator>Hugo</generator><language>en-us</language><lastBuildDate>Thu, 11 Jun 2026 13:46:53 -0400</lastBuildDate><atom:link href="https://0xssriv.github.io/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>Building d8 From Source</title><link>https://0xssriv.github.io/posts/browser_security/v8engine/building_d8_from_source/</link><pubDate>Thu, 11 Jun 2026 13:46:53 -0400</pubDate><guid>https://0xssriv.github.io/posts/browser_security/v8engine/building_d8_from_source/</guid><description>&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
-&lt;p&gt;If you are looking to get into browser security, and specifically, into the research of javascript engines, and even more specifically, into the research of Chrome V8, then one of the major tools that must be in your toolbox for this is the debug build of the V8 Javascript engine, which is called d8. d8 offers various auxiliary utilities specifically for debugging and studying v8 internals, such as native functions, which allow you to get information on object memory layout and addresses , JIT optimizations and deoptimizations, bytecodes and so forth. In this article, we will look at the process for building d8 from source and explore the various build options for it.&lt;/p&gt;</description></item></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Posts on 0xssriv&#39;s Writeups</title>
+    <link>http://localhost:1313/posts/</link>
+    <description>Recent content in Posts on 0xssriv&#39;s Writeups</description>
+    <generator>Hugo</generator>
+    <language>en-us</language>
+    <lastBuildDate>Sat, 15 Aug 2026 05:29:23 -0400</lastBuildDate>
+    <atom:link href="http://localhost:1313/posts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>CPU Side Channel Attacks - Part I</title>
+      <link>http://localhost:1313/posts/cpu_side_channel_attacks/part1/</link>
+      <pubDate>Sat, 15 Aug 2026 05:29:23 -0400</pubDate>
+      <guid>http://localhost:1313/posts/cpu_side_channel_attacks/part1/</guid>
+      <description>&lt;h1 id=&#34;introduction&#34;&gt;Introduction&lt;/h1&gt;
+&lt;p&gt;CPU side channel attacks utilize the CPU cache as a &amp;lsquo;side channel&amp;rsquo; or medium to disclose potentially sensitive information from an application or the OS. These sort of attacks are very interesting because it simply takes advantage of the way a CPU executes its instructions and the side effects that result because of it, without exploiting the application at all. There are two aspects of modern CPUs which allow this to happen - out-of-order execution and CPU caching. We need to understand how these work, in order to properly understand how the cache is used as a side channel in attacks like Meltdown and Spectre. This article focuses specifically on &lt;strong&gt;out-of-order&lt;/strong&gt; execution.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Building d8 From Source</title>
+      <link>http://localhost:1313/posts/browser_security/v8engine/building_d8_from_source/</link>
+      <pubDate>Thu, 11 Jun 2026 13:46:53 -0400</pubDate>
+      <guid>http://localhost:1313/posts/browser_security/v8engine/building_d8_from_source/</guid>
+      <description>&lt;h2 id=&#34;introduction&#34;&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;If you are looking to get into browser security, and specifically, into the research of javascript engines, and even more specifically, into the research of Chrome V8, then one of the major tools that must be in your toolbox for this is the debug build of the V8 Javascript engine, which is called d8. d8 offers various auxiliary utilities specifically for debugging and studying v8 internals, such as native functions, which allow you to get information on object memory layout and addresses , JIT optimizations and deoptimizations, bytecodes and so forth. In this article, we will look at the process for building d8 from source and explore the various build options for it.&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

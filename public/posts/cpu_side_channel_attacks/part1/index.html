@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="dark">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>CPU Side Channel Attacks - Part I | 0xssriv&#39;s Writeups</title>
+<meta name="keywords" content="">
+<meta name="description" content="Introduction
+CPU side channel attacks utilize the CPU cache as a &lsquo;side channel&rsquo; or medium to disclose potentially sensitive information from an application or the OS. These sort of attacks are very interesting because it simply takes advantage of the way a CPU executes its instructions and the side effects that result because of it, without exploiting the application at all. There are two aspects of modern CPUs which allow this to happen - out-of-order execution and CPU caching. We need to understand how these work, in order to properly understand how the cache is used as a side channel in attacks like Meltdown and Spectre. This article focuses specifically on out-of-order execution.">
+<meta name="author" content="Saumya Srivastava">
+<link rel="canonical" href="http://localhost:1313/posts/cpu_side_channel_attacks/part1/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.cd9298b33628769aa1bc1acebbbfd7aa11ce81dfe03484d479e1907760249a1d.css" integrity="sha256-zZKYszYodpqhvBrOu7/XqhHOgd/gNITUeeGQd2Akmh0=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/cpu_side_channel_attacks/part1/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="header-nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="0xssriv&#39;s Writeups (Alt + H)">0xssriv&#39;s Writeups</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" class="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg class="moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg class="sun" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu" class="menu">
+            <li>
+                <a href="http://localhost:1313/" title="Home">
+                    <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/posts/" title="Articles">
+                    <span>Articles</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <nav class="breadcrumbs" role="navigation" aria-label="Breadcrumb">
+            <a href="/">Home</a>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right">
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+            <a href="/posts/">Posts</a>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right">
+        <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+</nav>
+    <h1 class="post-title entry-hint-parent">
+      CPU Side Channel Attacks - Part I
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="35" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h1>
+    <div class="post-meta">
+
+<span title='2026-08-15 05:29:23 -0400 EDT'>August 15, 2026</span>&nbsp;·&nbsp;<span>Saumya Srivastava</span>
+
+</div>
+  </header> <details class="toc"  open>
+    <summary accesskey="c" title="(Alt + C)">
+        <span class="title">Table of Contents</span>
+    </summary>
+
+    <div class="inner"><ul>
+            <li>
+                <a href="#introduction" aria-label="Introduction">Introduction</a></li>
+            <li>
+                <a href="#understanding-modern-cpu-design" aria-label="Understanding Modern CPU Design">Understanding Modern CPU Design</a><ul>
+                    
+            <li>
+                <a href="#instruction-set-architectureisa" aria-label="Instruction Set Architecture(ISA)">Instruction Set Architecture(ISA)</a></li>
+            <li>
+                <a href="#the-single-cycle-processor" aria-label="The Single Cycle Processor">The Single Cycle Processor</a></li>
+            <li>
+                <a href="#pipelining" aria-label="Pipelining">Pipelining</a><ul>
+                    
+            <li>
+                <a href="#hazards" aria-label="Hazards">Hazards</a></li></ul>
+            </li>
+            <li>
+                <a href="#out-of-order-execution" aria-label="Out Of Order Execution">Out Of Order Execution</a><ul>
+                    
+            <li>
+                <a href="#out-of-order-engine-components" aria-label="Out of Order Engine Components">Out of Order Engine Components</a></li>
+            <li>
+                <a href="#register-renaming-and-false-dependencies" aria-label="Register Renaming and False Dependencies">Register Renaming and False Dependencies</a></li>
+            <li>
+                <a href="#common-data-bus-and-true-dependencies" aria-label="Common Data Bus and True Dependencies">Common Data Bus and True Dependencies</a></li>
+            <li>
+                <a href="#lifecycle-of-a-micro-operation" aria-label="Lifecycle of a Micro-Operation">Lifecycle of a Micro-Operation</a></li></ul>
+            </li>
+            <li>
+                <a href="#conclusion-and-key-takeaways" aria-label="Conclusion and Key Takeaways">Conclusion and Key Takeaways</a></li>
+            <li>
+                <a href="#references" aria-label="References">References</a>
+            </li>
+        </ul>
+        </li>
+        </ul>
+    </div>
+</details>
+
+  <div class="post-content md-content"><h1 id="introduction">Introduction<a hidden class="anchor" aria-hidden="true" href="#introduction">#</a></h1>
+<p>CPU side channel attacks utilize the CPU cache as a &lsquo;side channel&rsquo; or medium to disclose potentially sensitive information from an application or the OS. These sort of attacks are very interesting because it simply takes advantage of the way a CPU executes its instructions and the side effects that result because of it, without exploiting the application at all. There are two aspects of modern CPUs which allow this to happen - out-of-order execution and CPU caching. We need to understand how these work, in order to properly understand how the cache is used as a side channel in attacks like Meltdown and Spectre. This article focuses specifically on <strong>out-of-order</strong> execution.</p>
+<p>To properly understand out-of-order execution, we will first need to understand how CPU design started and evolved over the years in order to deliver faster processing speed. We start with the basic single cycle processor and how it evolved into pipelining and later on, into an out of order execution design. We will look at out-of-order execution particularly in greater depth and detail to understand how it really approaches instruction execution under the hood in a radically different way.</p>
+<h1 id="understanding-modern-cpu-design">Understanding Modern CPU Design<a hidden class="anchor" aria-hidden="true" href="#understanding-modern-cpu-design">#</a></h1>
+<h2 id="instruction-set-architectureisa">Instruction Set Architecture(ISA)<a hidden class="anchor" aria-hidden="true" href="#instruction-set-architectureisa">#</a></h2>
+<p>A CPU executes a sequence of instructions. The Instruction Set Architecture(ISA) specifies the various instructions, their operands, their semantics, memory addressing modes and the general purpose/special purpose registers available to the programmer which they can use in order to express their program logic. Their program will be able to run on the processor which implements that ISA. For example, x86 is an ISA, ARM is an ISA. CPUs implementing x86 can run only x86 assembly programs while ARM CPUs can run only ARM assembly programs and so forth.</p>
+<h2 id="the-single-cycle-processor">The Single Cycle Processor<a hidden class="anchor" aria-hidden="true" href="#the-single-cycle-processor">#</a></h2>
+<p>Programs are loaded into memory and is executed by the CPU. A program is a sequence of instructions. An instruction is a sequence of bytes which tells the processor what to do.
+An instruction follows an instruction encoding format which dictates how the instruction code or opcode, operands, immediate values, memory addresses are encoded at the bit level in order to get the binary representation of that instruction. Instruction length is the number of bytes that the binary encoding of that instruction takes.</p>
+<p>Now, when a program is loaded in the memory and needs to be executed, the single cycle CPU follows what is known as a <strong>Fetch - Decode - Execute</strong> cycle.</p>
+<ol>
+<li>
+<p>Fetch - The CPU fetches the bytes of instruction from memory. It does this via the Program Counter(PC) register. The PC has the memory address of the next instruction which is to be executed. When the CPU completes the instruction fetch of the current instruction, it increments the PC so that it points to the next instruction.</p>
+</li>
+<li>
+<p>Decode - The fetched instruction bytes are decoded. Here, the CPU follows the instruction encoding format and extracts or decodes the operation code or opcode, the operands, registers, memory, immediate values etc. from the instruction bytes. The CPU now &lsquo;knows&rsquo; what operation to perform and what operands are to be used.</p>
+</li>
+<li>
+<p>Execute - The CPU, based on the opcode and operands, executes the instruction in a series of steps. Each step involves activation of the appropriate circuitry in the CPU to do a particular &lsquo;micro operation&rsquo;, like putting data on a bus or reading data from a bus, reading from the register file, performing a computation in the ALU, loading operand from memory, storing to the register file or memory, setting status flag bits in the flags register and so on. The control unit circuitry of the CPU governs the sequence of these micro operations and ensures that the instruction executes correctly and the instruction&rsquo;s semantics are enforced. The control unit is able to achieve this ordering of micro ops using a clock signal, which synchronises the control unit and the other hardware components.</p>
+</li>
+</ol>
+<p><img alt="Basic Execution Cycle" loading="lazy" src="/posts/cpu_side_channel_attacks/part1/FetchDecExecDark.svg"></p>
+<p>The instructions execute one at a time, and after the execution of the instruction is complete, the next instruction is fetched and it goes through the same decode and execute phases till completion and this continues till the last program instruction.</p>
+<p>The above design is simple, but its performance can still be improved. Instructions here execute sequentially one at a time, but wouldn&rsquo;t it be better if say that while the 4th instruction is being executed, the 5th instruction is being decoded and while the 5th instruction is being decoded, the 6th instruction is fetched? That way, most parts of your CPU are kept busy and more instructions would be completed in a given time slice, meaning faster processing.</p>
+<p>This brings us to the first upgrade in CPU design - Pipelining.</p>
+<h2 id="pipelining">Pipelining<a hidden class="anchor" aria-hidden="true" href="#pipelining">#</a></h2>
+<p>Pipelining is one approach of executing multiple instructions in parallel, called Instruction Level Parallelism(ILP), by breaking the instruction cycle into multiple stages - forming
+a kind of pipeline. Each stage in this pipeline has dedicated hardware circuitry to implement it. Pipeline registers are used to store the results of the particular stage, which serves as input to the next stage in the pipeline. The exact stages in the pipeline depends on the CPU architecture and design decisions but for simplicity, we will discuss the classic RISC pipeline which has 5 stages in its instruction pipeline -</p>
+<ol>
+<li>Instruction Fetch</li>
+<li>Instruction Decode and Register Fetch</li>
+<li>Execute</li>
+<li>Memory Access</li>
+<li>Register Writeback</li>
+</ol>
+<p><img alt="Pipeline stages" loading="lazy" src="/posts/cpu_side_channel_attacks/part1/PipelineDark.svg"></p>
+<p>As seen above, pipelining allows the CPU to process multiple instructions simultaneously above in its different pipeline stages, keeping all parts of the processor busy and increasing
+execution speed and throughput.</p>
+<p>It all seems fine, until we start to encounter problems in this approach due to two reasons - control flow transfers and certain dependent instructions lead to situations where program correctness is violated. Such conditions are called <strong>Hazards</strong>.</p>
+<h3 id="hazards">Hazards<a hidden class="anchor" aria-hidden="true" href="#hazards">#</a></h3>
+<p>When we look at a sequence of instructions, we look at it with the assumption that instructions execute sequentially and the next instruction execution will start only when the
+current instruction is completed. Pipelining breaks this assumption.</p>
+<p>Consider these two assembly instructions, assuming it executes in the 5 stage RISC pipeline.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-asm" data-lang="asm"><span style="display:flex;"><span><span style="color:#a6e22e">inc</span> <span style="color:#66d9ef">rax</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">mov</span> <span style="color:#66d9ef">rbx</span>, <span style="color:#66d9ef">rax</span>
+</span></span></code></pre></div><p>Obviously, we would expect that the value of rax is incremented first and then moved into rbx. The second instruction&rsquo;s execution depends upon the execution of the first instruction .But, this is not what happens if we follow through with our pipeline.</p>
+<p>If <code>inc rax</code> is fetched at time t1, then in the Register Writeback stage(Stage 5) of the pipeline which happens at t5, the incremented value will be written back to rax.
+Now, <code>mov rbx, rax</code> will be fetched at t2 and the rax value to be copied into rbx will be read in the Instruction Decode and Register fetch stage(Stage 2) of the pipeline at t3.
+Thus, the move would use the old,stale value of rax instead of the incremented one because it is fetched(at t3) before the writeback even happens(at t5).</p>
+<p>Presence of branches and conditionals in the program, which every non-trivial program has, also lands us in a similar problem. Because instructions are fetched sequentially in the pipeline, the instructions of the &lsquo;if&rsquo; block end up in the pipeline and will continue advancing through the pipeline until the condition check&rsquo;s execute stage completes and the branch outcome is finally known. If the condition happens to evaluate to false and the &rsquo;else&rsquo; branch must be taken, the processor has done wasteful work in executing the &lsquo;if&rsquo; block and now the entire pipeline must be flushed and execution must restart from the else block.</p>
+<p>To prevent hazards, the hardware employs workarounds, like stalling the pipeline until the dependent instructions complete execution and its results are available to the instruction needing it, operand forwarding, branch prediction etc.</p>
+<p>Pipeline stalls are a common occurence in non-trivial programs. However, there is one situation caused due to pipeline stalling which is detrimental to performance - Instructions independent of whatever instruction causes the stall, now has to be stalled as well, when the processor could have executed it. For example -</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-asm" data-lang="asm"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">1.</span> <span style="color:#a6e22e">mov</span> <span style="color:#66d9ef">rax</span> , <span style="color:#66d9ef">QWORD</span>[<span style="color:#66d9ef">rbp-0x24</span>]
+</span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">2.</span> <span style="color:#a6e22e">shl</span> <span style="color:#66d9ef">rax</span>,<span style="color:#ae81ff">3</span>
+</span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">3.</span> <span style="color:#a6e22e">add</span> <span style="color:#66d9ef">rdi</span>, <span style="color:#66d9ef">rbx</span>
+</span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">4.</span> <span style="color:#a6e22e">sub</span> <span style="color:#66d9ef">rsi</span>, <span style="color:#ae81ff">0x1337</span>
+</span></span></code></pre></div><p>Here, instruction 2 can execute only when the value is loaded from memory into rax in instruction 1. Instructions 3 and 4 are independent of 1 and 2. However, an in-order pipeline would stall at instruction 2 in order to wait for the memory read and register writeback of instruction 1 to finish. Instructions 3 and 4, which could have been executed in the meantime, end up getting stalled as well in the pipeline.</p>
+<p>Now, what if the CPU could march ahead and execute instructions which are independent, putting more of the hardware to use and wasting less clock cycles ,while the dependent instructions complete? This required a very different design approach which culminated into the <strong>Out-Of-Order Execution</strong> CPU design.</p>
+<h2 id="out-of-order-execution">Out Of Order Execution<a hidden class="anchor" aria-hidden="true" href="#out-of-order-execution">#</a></h2>
+<p>Modern processors are designed to execute instructions out of order. Out-of-Order execution makes optimal use of CPU hardware and clock cycles by prioritizing instruction execution on the basis of data availability rather than instruction ordering, while ensuring data consistency and program correctness is still intact.</p>
+<p>There are two reconsiderations made so that instructions can be executed out of order -</p>
+<ol>
+<li>
+<p>Processor design is more data flow centric and computational units centric. Instead of tying down execution units to specific pipeline stages, we dispatch data and instructions to the appropriate execution unit and obtain the result. Now, this requires a fundamental change in how we see instructions itself.</p>
+</li>
+<li>
+<p>The instructions themselves are broken down into smaller and simpler micro-operations. The instruction decode unit is responsible for taking in the instruction bytes and breaking it down into its respective micro-ops. These micro-ops are then sent to the various execution units with their respective operands and the execution is carried out. Thus, execution units do not see the full instruction, they see micro-ops and their bundled operands.</p>
+</li>
+</ol>
+<p>The <strong>Tomasulo Algorithm</strong> , which was developed by Robert Tomasulo at IBM in 1967, is a hardware algorithm for dynamic scheduling of instructions which allows efficient use of compute units and out-of-order execution in a processor. This algorithm introduces fundamental hardware components and concepts to implement out of order execution correctly in processors -</p>
+<ol>
+<li>Instruction Decoder.</li>
+<li>Execution units for different kinds of operations and computations.</li>
+<li>Reservation stations for each execution unit</li>
+<li>Common Data Bus(CDB)</li>
+<li>Reorder buffer(ROB)</li>
+<li>Register Renaming - This is the most important concept because it plays a major role in program correctness by completely eliminating Write after Write(WaW) and Write after Read(WaR) hazards in the execution flow.</li>
+</ol>
+<h3 id="out-of-order-engine-components">Out of Order Engine Components<a hidden class="anchor" aria-hidden="true" href="#out-of-order-engine-components">#</a></h3>
+<p><img alt="OOE Schematic" loading="lazy" src="/posts/cpu_side_channel_attacks/part1/OOE-EngineDark.svg"></p>
+<p>The schematic above shows the various components in the CPU&rsquo;s Out of Order execution engine and their interactions.</p>
+<ol>
+<li>
+<p>The instruction fetch unit fetches multiple instructions from memory at once and sends them off to the instruction decoder units.</p>
+</li>
+<li>
+<p>The instruction decode unit decodes the instructions and breaks it down into its micro-ops. The dispatcher component of the decoder is responsible for taking these micro-ops and sending it to the appropriate reservation station where it will await its execution by its respective execution unit.</p>
+</li>
+<li>
+<p>The reservation station is a content addressable memory which holds the micro-operations that are awaiting execution. Micro-ops may not be ready for execution, because they require the result of a previous micro-op as input, and so they wait for it. micro-ops get the input data they depend on from the Common Data Bus(CDB), which all reservation stations listen on. CDB is highlighted in red in the schematic.</p>
+</li>
+<li>
+<p>The uOP scheduler is the component which continuously monitors the reservation station for micro-ops that are ready to execute. Based on its designed scheduling policy, it picks a particular micro-operation which is ready for execution and dispatches it to the execution unit. Note that the operands of the micro-op are bundled with the micro-op itself, in order to avoid stalling due to additional writebacks.</p>
+</li>
+<li>
+<p>The execution unit takes the micro-op with its bundled operands and then performs the corresponding operation to yield a result. The result of the micro-op execution</p>
+<ul>
+<li>is written in the designated slot of the micro-op in the Reorder Buffer(ROB).</li>
+<li>is placed on the common data bus(CDB) for the waiting micro-ops which depend on it.</li>
+<li>May be written to the internal register file if necessary.</li>
+</ul>
+</li>
+<li>
+<p>The re-order buffer(ROB), holds the result slots for the micro-operations in the program order. This component ensures instruction ordering is maintained. Every decoded micro-op is assigned a slot in the ROB by the instruction decoder where its result will be stored. The slots are assigned in the correct order. This is the key thing to note - Micro-op execution happens out of order, but their results are arranged in the ROB in-order. The ROB performs what is known as micro-op <strong>retirement</strong>. When a micro-op&rsquo;s execution is complete and its result is in the ROB slot, the ROB retires the micro-op by committing its result to the appropriate architectural component and register file and freeing up its slot for fresh micro-ops. However, note that just because a micro-op&rsquo;s result is in the ROB does not mean it can be retired immediately. A micro-op can only be retired <strong>if all its preceding micro-ops have been retired</strong> , otherwise, you have not maintained program order and violated program correctness. Thus a micro-op waits for retirement in the ROB.</p>
+</li>
+</ol>
+<h3 id="register-renaming-and-false-dependencies">Register Renaming and False Dependencies<a hidden class="anchor" aria-hidden="true" href="#register-renaming-and-false-dependencies">#</a></h3>
+<p>Register renaming, as mentioned before, is important as it eliminates WaR and WaW hazards, which are also called false dependencies between instructions. False dependencies are artificial dependencies that occur just because two independent instructions happen to use the same destination register. While the actual details are a bit involved and they are not really necessary to know, the key point to understand about the concept of register renaming is that the architectural registers - which are the actual registers that programmers and instructions can name, are decoupled from the execution process and a separate internal register file is used by the execution engine to perform register writebacks.</p>
+<p>When the decoder decodes the instruction and breaks it into micro-ops, it also does the <strong>register renaming</strong> procedure, by changing architectural register encodings to that of the &lsquo;scratchpad&rsquo; registers within its own internal register file. Thus, the micro-ops have no awareness of the architectural registers at all. The only other component which has awareness of the archtectural state is the ROB which will commit the results to the architectural registers in-order.</p>
+<p>Thus the instruction decoder, the internal register file, and the ROB working together like this,isolate the architectural state from the absolute chaos ensuing due to out-of-order execution. This is also why you are never able to see the effects of out of order execution by simply seeing your register values in the debugger - because debuggers show you the architectural state of the CPU and the ROB makes its commits in-order, which completely conceals the fact that the execution is happening out of order.</p>
+<h3 id="common-data-bus-and-true-dependencies">Common Data Bus and True Dependencies<a hidden class="anchor" aria-hidden="true" href="#common-data-bus-and-true-dependencies">#</a></h3>
+<p>True dependencies are also called Read after Write(RaW) hazards in computer architecture. This is the dependency that occurs because one instruction needs the result of another instruction to execute correctly. Unlike false dependencies, true dependencies cannot be eleiminated and moreover, true dependencies allow you to express non trivial and complex program logic in the first place. So, how are true dependencies resolved quickly? The answer is the common data bus(CDB).</p>
+<p>Every execution unit is connected to the common data bus as a sender and every reservation station listens on the common data bus as a recipient. When a micro-op&rsquo;s result is obtained by an execution unit, along with writing the result to the ROB slot, it simultaneuosly puts the result onto the common data bus along with a tag identifier. This tag identifer uniquely identifies a micro-op that is waiting in one of the reservation stations. Now all reservation stations listen on the CDB, but only the micro-op whose tag value matches the one on the bus will respond. The concerned micro-op reads the data value it depends on from the CDB, and marks itself as ready for execution, so that the uOP scheduler can now select and dispatch it.</p>
+<p>Thus in this way, the CDB resolves true dependencies efficiently, by making data available to the dependent micro-ops as soon as it is computed, without having to do a writeback operation.</p>
+<p>The exact details about how this sort of operation is implemented in hardware is a another subject of its own and is beyond the scope of this blog and is not necessary. The key takeaway from this discussion is that micro-ops have data dependencies between them and the common data bus is the mechanism to propagate that data as soon as it is computed or fetched.</p>
+<h3 id="lifecycle-of-a-micro-operation">Lifecycle of a Micro-Operation<a hidden class="anchor" aria-hidden="true" href="#lifecycle-of-a-micro-operation">#</a></h3>
+<p>Now, keeping all of the above facts in mind about out of order execution, lets trace step-by step what happens to a micro-op as it moves through the CPU.</p>
+<ol>
+<li>
+<p>The instruction decoder decodes the instruction, breaks it down into its micro-operations, performs register renaming, and for each micro-operation, creates its appropriate slots in the re-order buffer, in the correct order.</p>
+</li>
+<li>
+<p>The dispatcher component of the decoder, takes the micro-op and based on the kind of operation(arithmetic, memory R/W, floating point, SIMD etc.) routes it to the correct reservation station for that operation. In the reservation station, the micro-op gets placed in the first empty available slot in the reservation station.</p>
+</li>
+<li>
+<p>This micro-op depends on some other micro-op before it for some data, and so it is currently not ready for execution, so it waits for that data.</p>
+</li>
+<li>
+<p>Some data has been placed on the CDB. On checking the tag value, it matches the tag id of this micro-op. This is the data which it needed. Now, it reads in the data, and marks itself ready for execution.</p>
+</li>
+<li>
+<p>The scheduler picks up this micro-op and dispatches it to the execution unit which now does the operation and produces the result.</p>
+</li>
+<li>
+<p>The result gets written to its slot in the ROB, and at the same time, that result is placed on the CDB, so that the micro-op which needs that value and is waiting for it, can now avail it. A register writeback to the internal register file may also be done.</p>
+</li>
+<li>
+<p>The micro-op execution is finished and now, its result waits in the ROB to be committed to the architectural registers. Once that is done, the micro-op has been retired successfully.</p>
+</li>
+</ol>
+<h2 id="conclusion-and-key-takeaways">Conclusion and Key Takeaways<a hidden class="anchor" aria-hidden="true" href="#conclusion-and-key-takeaways">#</a></h2>
+<p>That was a lot of theory and details to unpack about processors, but this is necessary for fully understanding the aspects of modern CPUs which introduces certain behaviours that can be leveraged in CPU based attacks. All the discussions above can be boiled down to a few key takeaways when we consider security at the microarchitecture level-</p>
+<ol>
+<li>Instructions themselves are not fully fundamental - An instruction is further broken down into its sequence of micro-operations.</li>
+<li>The smallest unit of execution in a modern CPU is not an instruction, it is a micro-operation.</li>
+<li>Micro-op execution happens out-of-order, but their retirement always happens <strong>in-order</strong>. For a micro-op to be retired, first, all the micro-ops preceding it must be retired.</li>
+<li>The architectural registers are the registers which are visible to the programmer and they can write instructions and programs which operate on them.</li>
+<li>The architectural registers are decoupled from the execution process of instructions. Computations are done internally and independently and the results are committed to the architectural registers in-order, giving the illusion that the execution of instructions is happening sequentially.</li>
+</ol>
+<p>In the next part, we will take a look at CPU Caching and how its effects can be measured in software, which enables us to use it as a side channel of information.</p>
+<h2 id="references">References<a hidden class="anchor" aria-hidden="true" href="#references">#</a></h2>
+<ul>
+<li><strong>BitLemon Software&rsquo;s Youtube video</strong> - <a href="https://www.youtube.com/watch?v=EzEKGlO9w4Y">https://www.youtube.com/watch?v=EzEKGlO9w4Y</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Instruction_pipelining">https://en.wikipedia.org/wiki/Instruction_pipelining</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Tomasulo%27s_algorithm">https://en.wikipedia.org/wiki/Tomasulo%27s_algorithm</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Out-of-order_execution">https://en.wikipedia.org/wiki/Out-of-order_execution</a></li>
+</ul>
+<p><strong>Next</strong> : <a href="">CPU Side Channel Attacks Part II - The CPU Cache</a></p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">0xssriv&#39;s Writeups</a></span> · 
+
+    
+    
+    <span>
+        Powered by
+        <a href="https://gohugo.io/?utm_source=papermod" rel="noopener" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" id="top-link" class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up">
+        <polyline points="17 11 12 6 7 11"></polyline>
+        <polyline points="17 18 12 13 7 18"></polyline>
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var toplink = document.getElementById("top-link");
+    window.onscroll = function () {
+        const scrollThreshold = window.innerHeight;
+        if (document.body.scrollTop > scrollThreshold || document.documentElement.scrollTop > scrollThreshold) {
+            toplink.classList.remove("hidden");
+        } else {
+            toplink.classList.add("hidden");
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>
