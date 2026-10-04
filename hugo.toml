@@ -9,7 +9,7 @@
     author = "Saumya Srivastava"
     ShowReadingTime = false
     ShowShareButtons = false
-    ShowPostNavLinks = true
+    ShowPostNavLinks = false
     ShowBreadCrumbs = true
     ShowCodeCopyButtons = true
     defaultTheme = "dark"
