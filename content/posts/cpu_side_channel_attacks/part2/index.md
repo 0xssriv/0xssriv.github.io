@@ -530,9 +530,10 @@ conclude if data is either present or absent in the cache and in turn, this tell
 Now, we know how to check if memory accesses are cache hits or cache misses from access time but how does that help us? Well, think about how we had a target index and we accessed it 
 and then we were able to tell from the access time itself on the graph and in our python data processing script that the cache hit was at our target index 65 and nowhere else. Lets 
 build upon that. Say we are in this situation where we know a memory address which holds a sensitive or forbidden value which we are not allowed to see - like for example, data at 
-a kernel address from userspace or the address of a cryptographic key stored securely in another process. We do not have the .Also, lets say we have the capability to control a 
-process and we are able to allocate and use memory as desired, so we can allocate probe memory pages. How do we disclose the first byte at such an address? Because the address of the 
-forbidden value is known, we can 'use' the byte value stored in it to index into the probe memory pages that we allocate prior to this and after that, we profile the probe cache lines to see at what index we have a cache hit based on the access time data, using our flush and reload strategy.
+a kernel address from userspace or the address of a cryptographic key stored securely in another process. We know the memory address but we do not have the permissions to read it.
+Also, lets say we have the capability to control a process and we are able to allocate and use memory as desired, so we can allocate probe memory pages. How do we disclose the first 
+byte at such an address? Because the address of the forbidden value is known, we can 'use' the byte value stored in it to index into the probe memory pages that we allocate prior to 
+this and after that, we profile the probe cache lines to see at what index we have a cache hit based on the access time data, using our flush and reload strategy.
 
 ![Cache as a Side Channel](CacheLeaksBytes.svg)
 
