@@ -184,4 +184,4 @@ In the next part, we will take a look at CPU Caching and how its effects can be 
 - https://en.wikipedia.org/wiki/Tomasulo%27s_algorithm
 - https://en.wikipedia.org/wiki/Out-of-order_execution 
  
-**Next** : [CPU Side Channel Attacks Part II - The CPU Cache]({{< ref "" >}})
+**Next** : [CPU Side Channel Attacks Part II - The CPU Cache]({{< ref "posts/cpu_side_channel_attacks/part2" >}})

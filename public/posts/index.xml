@@ -6,8 +6,20 @@
     <description>Recent content in Posts on 0xssriv&#39;s Writeups</description>
     <generator>Hugo</generator>
     <language>en-us</language>
-    <lastBuildDate>Sat, 15 Aug 2026 05:29:23 -0400</lastBuildDate>
+    <lastBuildDate>Thu, 03 Sep 2026 11:02:23 -0400</lastBuildDate>
     <atom:link href="http://localhost:1313/posts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>CPU Side Channel Attacks Part-II - CPU Cache</title>
+      <link>http://localhost:1313/posts/cpu_side_channel_attacks/part2/</link>
+      <pubDate>Thu, 03 Sep 2026 11:02:23 -0400</pubDate>
+      <guid>http://localhost:1313/posts/cpu_side_channel_attacks/part2/</guid>
+      <description>&lt;h2 id=&#34;introduction&#34;&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;In the previous blog post, we looked in great depth the out-of-order execution design of processors and how instruction execute in this design. In this part, we will look in detail
+the component of the CPU which serves as the &amp;lsquo;side channel&amp;rsquo; of information - the CPU cache.&lt;/p&gt;
+&lt;h2 id=&#34;basics-of-the-cpu-cache&#34;&gt;Basics Of The CPU Cache&lt;/h2&gt;
+&lt;h3 id=&#34;the-cache-hierarchy&#34;&gt;The Cache Hierarchy&lt;/h3&gt;
+&lt;p&gt;The CPU cache is a fast memory close to the CPU core which is used to speed up memory access operations. Memory operates at a much slower speed than the CPU, which causes the CPU to wait for many clock cycles for the memory operation to complete. The CPU cache is additional memory on chip which addresses this issue. When the CPU reads from memory, it stores the data within its cache memory. The next time when the CPU needs to access that same memory location, it checks the cache for the data, and if it is found there, then the CPU reads it from the cache itself, without having to reach out to the main memory, thus saving time and increasing performance. The CPU always checks its cache memory for data before going out to main memory. If the data is found in the cache, then it is called a &lt;strong&gt;cache hit&lt;/strong&gt; and the CPU can use it. If the data is not found in the cache, then it is called a &lt;strong&gt;cache miss&lt;/strong&gt; and the CPU must reach out to the main memory for the data, paying a performance cost.&lt;/p&gt;</description>
+    </item>
     <item>
       <title>CPU Side Channel Attacks - Part I</title>
       <link>http://localhost:1313/posts/cpu_side_channel_attacks/part1/</link>

@@ -3,12 +3,15 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>http://localhost:1313/</loc>
-    <lastmod>2026-08-15T05:29:23-04:00</lastmod>
+    <lastmod>2026-09-03T11:02:23-04:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/posts/cpu_side_channel_attacks/part1/</loc>
-    <lastmod>2026-08-15T05:29:23-04:00</lastmod>
+    <loc>http://localhost:1313/posts/cpu_side_channel_attacks/part2/</loc>
+    <lastmod>2026-09-03T11:02:23-04:00</lastmod>
   </url><url>
     <loc>http://localhost:1313/posts/</loc>
+    <lastmod>2026-09-03T11:02:23-04:00</lastmod>
+  </url><url>
+    <loc>http://localhost:1313/posts/cpu_side_channel_attacks/part1/</loc>
     <lastmod>2026-08-15T05:29:23-04:00</lastmod>
   </url><url>
     <loc>http://localhost:1313/posts/browser_security/v8engine/building_d8_from_source/</loc>

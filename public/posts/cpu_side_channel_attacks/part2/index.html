@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="dark">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>CPU Side Channel Attacks Part-II - CPU Cache | 0xssriv&#39;s Writeups</title>
+<meta name="keywords" content="">
+<meta name="description" content="Introduction
+In the previous blog post, we looked in great depth the out-of-order execution design of processors and how instruction execute in this design. In this part, we will look in detail
+the component of the CPU which serves as the &lsquo;side channel&rsquo; of information - the CPU cache.
+Basics Of The CPU Cache
+The Cache Hierarchy
+The CPU cache is a fast memory close to the CPU core which is used to speed up memory access operations. Memory operates at a much slower speed than the CPU, which causes the CPU to wait for many clock cycles for the memory operation to complete. The CPU cache is additional memory on chip which addresses this issue. When the CPU reads from memory, it stores the data within its cache memory. The next time when the CPU needs to access that same memory location, it checks the cache for the data, and if it is found there, then the CPU reads it from the cache itself, without having to reach out to the main memory, thus saving time and increasing performance. The CPU always checks its cache memory for data before going out to main memory. If the data is found in the cache, then it is called a cache hit and the CPU can use it. If the data is not found in the cache, then it is called a cache miss and the CPU must reach out to the main memory for the data, paying a performance cost.">
+<meta name="author" content="Saumya Srivastava">
+<link rel="canonical" href="http://localhost:1313/posts/cpu_side_channel_attacks/part2/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.cd9298b33628769aa1bc1acebbbfd7aa11ce81dfe03484d479e1907760249a1d.css" integrity="sha256-zZKYszYodpqhvBrOu7/XqhHOgd/gNITUeeGQd2Akmh0=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/cpu_side_channel_attacks/part2/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="header-nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="0xssriv&#39;s Writeups (Alt + H)">0xssriv&#39;s Writeups</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" class="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg class="moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg class="sun" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu" class="menu">
+            <li>
+                <a href="http://localhost:1313/" title="Home">
+                    <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/posts/" title="Articles">
+                    <span>Articles</span>
+                </a>
+            </li>
+            <li>
+                <a href="http://localhost:1313/about/" title="About">
+                    <span>About</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <nav class="breadcrumbs" role="navigation" aria-label="Breadcrumb">
+            <a href="/">Home</a>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right">
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+            <a href="/posts/">Posts</a>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right">
+        <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+</nav>
+    <h1 class="post-title entry-hint-parent">
+      CPU Side Channel Attacks Part-II - CPU Cache
+    </h1>
+    <div class="post-meta">
+
+<span title='2026-09-03 11:02:23 -0400 EDT'>September 3, 2026</span>&nbsp;·&nbsp;<span>Saumya Srivastava</span>
+
+</div>
+  </header> <details class="toc"  open>
+    <summary accesskey="c" title="(Alt + C)">
+        <span class="title">Table of Contents</span>
+    </summary>
+
+    <div class="inner"><ul>
+            <li>
+                <a href="#introduction" aria-label="Introduction">Introduction</a></li>
+            <li>
+                <a href="#basics-of-the-cpu-cache" aria-label="Basics Of The CPU Cache">Basics Of The CPU Cache</a><ul>
+                    
+            <li>
+                <a href="#the-cache-hierarchy" aria-label="The Cache Hierarchy">The Cache Hierarchy</a></li>
+            <li>
+                <a href="#cache-lines" aria-label="Cache Lines">Cache Lines</a></li></ul>
+            </li>
+            <li>
+                <a href="#implications-of-the-cache" aria-label="Implications Of The Cache">Implications Of The Cache</a></li>
+            <li>
+                <a href="#measuring-access-times" aria-label="Measuring Access Times">Measuring Access Times</a><ul>
+                    
+            <li>
+                <a href="#rdtsc-and-intrinsics" aria-label="rdtsc and Intrinsics">rdtsc and Intrinsics</a></li>
+            <li>
+                <a href="#the-naive-stopwatch" aria-label="The Naive Stopwatch">The Naive Stopwatch</a></li>
+            <li>
+                <a href="#fences-to-the-rescue" aria-label="Fences to the Rescue!">Fences to the Rescue!</a></li>
+            <li>
+                <a href="#the-accurate-stopwatch" aria-label="The Accurate Stopwatch">The Accurate Stopwatch</a></li></ul>
+            </li>
+            <li>
+                <a href="#profiling-the-cache" aria-label="Profiling The Cache">Profiling The Cache</a><ul>
+                    
+            <li>
+                <a href="#flush-and-reload-technique" aria-label="Flush and Reload Technique">Flush and Reload Technique</a></li>
+            <li>
+                <a href="#implementing-flush-and-reload" aria-label="Implementing Flush and Reload">Implementing Flush and Reload</a></li>
+            <li>
+                <a href="#analysing-the-timing-data" aria-label="Analysing the Timing Data">Analysing the Timing Data</a></li>
+            <li>
+                <a href="#the-cache-is-an-oracle" aria-label="The Cache is an Oracle!">The Cache is an Oracle!</a></li></ul>
+            </li>
+            <li>
+                <a href="#weaponizing-the-cache" aria-label="Weaponizing The Cache">Weaponizing The Cache</a><ul>
+                    
+            <li>
+                <a href="#cache-me-if-you-can" aria-label="Cache Me If You Can!">Cache Me If You Can!</a></li></ul>
+            </li>
+            <li>
+                <a href="#conclusion" aria-label="Conclusion">Conclusion</a></li>
+            <li>
+                <a href="#references" aria-label="References">References</a>
+            </li>
+        </ul>
+    </div>
+</details>
+
+  <div class="post-content md-content"><h2 id="introduction">Introduction<a hidden class="anchor" aria-hidden="true" href="#introduction">#</a></h2>
+<p>In the previous blog post, we looked in great depth the out-of-order execution design of processors and how instruction execute in this design. In this part, we will look in detail
+the component of the CPU which serves as the &lsquo;side channel&rsquo; of information - the CPU cache.</p>
+<h2 id="basics-of-the-cpu-cache">Basics Of The CPU Cache<a hidden class="anchor" aria-hidden="true" href="#basics-of-the-cpu-cache">#</a></h2>
+<h3 id="the-cache-hierarchy">The Cache Hierarchy<a hidden class="anchor" aria-hidden="true" href="#the-cache-hierarchy">#</a></h3>
+<p>The CPU cache is a fast memory close to the CPU core which is used to speed up memory access operations. Memory operates at a much slower speed than the CPU, which causes the CPU to wait for many clock cycles for the memory operation to complete. The CPU cache is additional memory on chip which addresses this issue. When the CPU reads from memory, it stores the data within its cache memory. The next time when the CPU needs to access that same memory location, it checks the cache for the data, and if it is found there, then the CPU reads it from the cache itself, without having to reach out to the main memory, thus saving time and increasing performance. The CPU always checks its cache memory for data before going out to main memory. If the data is found in the cache, then it is called a <strong>cache hit</strong> and the CPU can use it. If the data is not found in the cache, then it is called a <strong>cache miss</strong> and the CPU must reach out to the main memory for the data, paying a performance cost.</p>
+<p>There are two central principles which caching is based on</p>
+<ol>
+<li>
+<p>Temporal locality of reference - When a memory address is accessed once, it will most likely be accessed again and so it is cached. This makes sense in a lot of programming constructs like loop counters for example.</p>
+</li>
+<li>
+<p>Spatial locality of reference - When a memory address is accessed, there is a high chance that the adjacent memory addresses will be accessed as well. Thus along with the currently accessed memory location, the adjacent memory locations must also be cached. This helps in speeding up access of array elements and structure members in programs. This behaviour of the CPU is also called <strong>prefetching</strong>, where the CPU fetches adjacent memory contents and caches them as well, ahead of time, anticipating their subsequent access.</p>
+</li>
+</ol>
+<p>Generally, the CPU cache is not a single block of memory soldered on the CPU. Rather, it is organized in tiers or levels, as depicted below -</p>
+<p><img alt="Cache Layout" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/CacheLayoutDark.svg"></p>
+<p>There are three layers of caches - L1, L2 and L3. As the layers progress - the cost decreases, access time increases, and the cache&rsquo;s storage capacity increases.</p>
+<ol>
+<li>
+<p><strong>L1 Cache</strong> - This is the first layer of cache, designed to be small and match the processor&rsquo;s speed. L1 cache is divided into two separate components - the L1 data cache - which specializes in caching data and the L1 instruction cache - which specializes in caching instructions and make instruction fetching and execution much faster. L1 caches are small in capacity ranging from 16KB to 128 KB, and are quite expensive. But, they are extremely fast to access. Each CPU core has its own L1 cache.</p>
+</li>
+<li>
+<p><strong>L2 Cache</strong> - To address the size limitations of the L1 cache, CPU cores have an additional L2 cache, which is designed to be larger in size, but it works at slower speed compared to L1 cache. The L2 cache is unified, meaning it can store both data and instructions. It directly communicates with the L1 cache. L2 cache capacity is larger than L1 - going roughly from 256KB to 2MB.</p>
+</li>
+<li>
+<p><strong>L3 Cache</strong> - the L3 cache is shared among all CPU cores. It is an additional caching layer between the main memory and the CPU cores. It also serves as a medium for two CPU cores to exchange data with each other fast, without using the main memory. The L3 cache is larger than L2 cache in storage, ranging from roughly 2MB to 32MB and is slower than the L2 cache to access.</p>
+</li>
+</ol>
+<p>Each core has its own L1 and L2 caches, while L3 cache is a single cache shared among all cores. A CPU core accesses memory in the this order:
+L1 &mdash;&gt; L2(if cache miss in L1) &mdash;&gt; L3(if cache miss in L2) &mdash;&gt; main memory(data not present in any of the caches).</p>
+<p>In terms of access speed from fastest to slowest we have-</p>
+<ol>
+<li>L1 cache (Latency 1 to 3 CPU cycles)</li>
+<li>L2 cache (Latency 4 to 10 CPU cycles)</li>
+<li>L3 cache (Latency 10 to 40 CPU cycles)</li>
+<li>Main memory(Latency is a couple hundreds to thousands of CPU cycles)</li>
+</ol>
+<p>Thus we see that no matter what the level of cache is, it will be significantly faster than accessing memory.</p>
+<p>Now that we have seen the CPU cache hirearchy, we need to just take a brief look at how data is organized within the cache in <strong>cache lines</strong>.</p>
+<h3 id="cache-lines">Cache Lines<a hidden class="anchor" aria-hidden="true" href="#cache-lines">#</a></h3>
+<p>The cache stores cached data into cache lines. A cache line is the smallest unit of data a cache can transfer. Depending on the architecture - cache line sizes are 32-byte , 64-byte or 128-bytes, with 64-byte cache lines being the most common. If you want to see how big your processor&rsquo;s cache lines are, on Linux systems, you can run the <code>cat /proc/cpuinfo</code> command.</p>
+<p><img alt="cpuinfo" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/cpuinfo.png"></p>
+<p>Note the <strong>clflush size</strong> and the <strong>cache_alignment</strong> size, which are underlined above, both read 64 which implies that cache lines are 64 bytes wide.</p>
+<p>Now, cache lines are tagged and have an additional tag field appended to it, which tells the general location where the data came from in main memory. The cache lines are divided into
+multiple <strong>sets</strong>. Single cache lines taken from each set form a column of cache lines called a <strong>bank</strong> or a <strong>way</strong>. Thus the arrangement of cache lines is grid like - with rows representing sets and columns representing ways. It can be visualized like this -</p>
+<p><img alt="Cache lines" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/CacheLinesDark.svg"></p>
+<p>Such caches are called N-way set associative cache. The one illustrated above is a 4-way set associative cache.</p>
+<p>When a memory read happens at an address , an entire 64-byte block is read from memory, so that it fits within the cache line. In order to interact with the cache, the memory address is broken down into 3 parts - The tag bits, set index bits to identify the set number, and the offset bits. The number of bits of these three fields depend on the size of memory addresses, number of sets in the cache, and the cache line size respectively.</p>
+<p>When the CPU has to cache a data block, the cache takes the <strong>set index</strong> field from the memory address and determines the set number from which the cache line will be selected. In that set, the next free available cache line is picked, and the data block is now stored in that cache line along with the <strong>tag</strong> field identified by the memory address.</p>
+<p>Now, when the CPU has to read some bytes at or around that address and it asks the cache for it, the cache uses the <strong>tag</strong> bits and <strong>set index</strong> bits to pinpoint the exact cache line requested, and it gives the CPU the entire 64-byte data block from there. The CPU now uses the <strong>offset</strong> field from the memory address to index into this data block and read the exact byte or bytes it needs from that block.</p>
+<p>There are many cache designs which organize cache memory differently - each having their own pros and cons in terms of cost effectiveness and performance. All the inner complex details about caching is beyond the scope of this series and is not required.</p>
+<p>The key thing to understand from all of the discussion above is that caches - no matter its design and no matter its level in the hierarchy, speeds up memory accesses drastically. The cache also organises cached data into blocks of a fixed size called a cache line. Now, after understanding the caching layers and cache lines, it is time to get to the main part - how can we weaponise it?</p>
+<h2 id="implications-of-the-cache">Implications Of The Cache<a hidden class="anchor" aria-hidden="true" href="#implications-of-the-cache">#</a></h2>
+<p>Now, if the cache speeds up memory access, then as a consequence, it takes much less time to read the value from it, as compared to main memory. So, we can generally say</p>
+<p>Cached data =&gt; Small access time and
+Uncached data =&gt; large access time</p>
+<p>Now, what information can we learn from this time difference?</p>
+<p>Before we can properly and reliably answer this question, there are a few considerations we must address -</p>
+<ol>
+<li>How do we measure memory access time ?</li>
+<li>When we say that cached data has small access times, how &lsquo;small&rsquo; are we talking about? Memory access times can fluctuate due to a variety of reasons and this data is really noisy. In all this noise, how can we say that some accesses have been cache hits?</li>
+</ol>
+<p>Let&rsquo;s turn our attention to the first question - <strong>measuring memory access times</strong>. Note that for the programs and experiments that follow, an x86 based machine is assumed.
+My processor is AMD Ryzen 7 4000 Series and I have compiled and run the programs on Ubuntu 24.04 VM running on VirtualBox.</p>
+<h2 id="measuring-access-times">Measuring Access Times<a hidden class="anchor" aria-hidden="true" href="#measuring-access-times">#</a></h2>
+<h3 id="rdtsc-and-intrinsics">rdtsc and Intrinsics<a hidden class="anchor" aria-hidden="true" href="#rdtsc-and-intrinsics">#</a></h3>
+<p>One quick and simple way of measuring the memory access time is using the <strong>rdtsc</strong> assembly instruction on x86, which reads the timestamp counter register(TSC) value. The TSC register is a 64-bit register on x86 which acts as a clock cycle counter - it increments on every CPU clock tick. On Linux, you can include the x86intrin.h header file in your C code to access the various processor intrinsics, which includes the <code>__rtdsc()</code> function that allows you to read the TSC value from C itself.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdio.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;x86intrin.h&gt;  //Processor intrinsics</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdint.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> tsc <span style="color:#f92672">=</span> <span style="color:#a6e22e">__rdtsc</span>();  <span style="color:#75715e">//Read the timestamp value
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;Timestamp = %li</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, tsc);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>On running the above C program, we see that we can access and print the timestamp counter which tells how many CPU clock ticks have elapsed.</p>
+<p><img alt="rdtsc example code output" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/readtscprogram.png"></p>
+<p>We could use sleep() or nanosleep() system calls to measure the time, but they are not a reliable way to do so, because they introduce errors in the measurement due to overhead by system call and process/thread scheduling. rdtsc in constrast simply reads from a register and is fast and small, with little to no errors due to delay. Thus, we will measure memory
+access times in terms of <strong>CPU clock ticks</strong> rather than seconds or nanoseconds.</p>
+<h3 id="the-naive-stopwatch">The Naive Stopwatch<a hidden class="anchor" aria-hidden="true" href="#the-naive-stopwatch">#</a></h3>
+<p>Now that we have figured out how we are going to measure time, lets use it to time memory accesses. This is easy - Before the memory access, record the starting timestamp, and after the memory access completes, record the ending timestamp and then, calculate (end - start) in order to find out the access time. So , the code is as -</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdio.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;x86intrin.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdint.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> buf[<span style="color:#ae81ff">128</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> start <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>,end<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    start <span style="color:#f92672">=</span> <span style="color:#a6e22e">__rdtsc</span>(); <span style="color:#75715e">// Record start timestamp
+</span></span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* Perform memory access of buf
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">       x is declared volatile to prevent the compiler from optimizing it away because it is not used.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">    */</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">volatile</span> <span style="color:#66d9ef">char</span> x <span style="color:#f92672">=</span> buf[<span style="color:#ae81ff">2</span>];  
+</span></span><span style="display:flex;"><span>    end <span style="color:#f92672">=</span> <span style="color:#a6e22e">__rdtsc</span>();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> acc_time <span style="color:#f92672">=</span> end <span style="color:#f92672">-</span> start;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;Memory access time = %li</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, acc_time);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>On running the above program a couple of times, we see this.</p>
+<p><img alt="Naive stopwatch output" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/naivetimer.png"></p>
+<p>That is really odd. We see that the access time is really quick most of the time - 20 clock ticks and there is one case where it took just 1 clock tick. But how can this be? The logic
+is correct, right? Well, there is still something missing. This way of calculating access times assumes that first the start timestamp is read, then the memory access happens and finishes, and then the end timestamp is read, in sequence. But as seen in the previous blog post, CPU instructions execute <strong>out-of-order</strong> ! Thus, it could be that the start and end timestamp counters are read before the memory access even starts, or the end timestamp counter is read prematurely, before the memory access even completes, or memory access completes before the start timestamp&rsquo;s micro-ops are even scheduled to run! So this code above fails to time the memory access at all. More technically, <strong>rdtsc</strong> is a <strong>non serializing</strong> instruction, meaning the CPU can execute instructions around it out-of-order and so if you are using it vanilla for timing and benchmarking, you will get incorrect results.</p>
+<p>What we need to do now, is to strictly ensure instruction ordering during execution - The memory read starts only after the start timestamp read is complete and the end timestamp is read only after the memory read completes. But how do we do that in a fundamentally out-of-order execution processor? The CPU provides us with a way to enforce execution ordering through the concept of <strong>fences</strong> .</p>
+<h3 id="fences-to-the-rescue">Fences to the Rescue!<a hidden class="anchor" aria-hidden="true" href="#fences-to-the-rescue">#</a></h3>
+<p>A memory barrier or a memory fence is a CPU instruction, which enforces an ordering constraint on memory operations relative to it. A memory fence guarantees that memory operations occuring before it will be conpleted before the memory operations that will occur after it. Thus, in a way, memory fences allow us to some extent, enforce a sequential ordering of memory operations which otherwise, would be happening out-of-order. In x86, there are 3 types of memory fences, covered by 3 distinct assembly instructions -</p>
+<ol>
+<li>Load Fence(lfence instruction) - lfence is memory load fence or load barrier instruction. This instruction ensures that all memory loads occuring before it complete before any memory load occuring after it start executing. For example -</li>
+</ol>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-asm" data-lang="asm"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">1.</span> <span style="color:#a6e22e">mov</span> <span style="color:#66d9ef">rax</span>, <span style="color:#66d9ef">QWORD</span>[<span style="color:#66d9ef">rbp-0x18</span>]
+</span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">2.</span> <span style="color:#a6e22e">lfence</span>
+</span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">3.</span> <span style="color:#a6e22e">mov</span> <span style="color:#66d9ef">rbx</span>, <span style="color:#66d9ef">QWORD</span>[<span style="color:#66d9ef">rbp</span> - <span style="color:#ae81ff">0x28</span>] 
+</span></span></code></pre></div><p>Here, lfence instruction at 2, guarantees that the memory load 1 will complete its execution before memory load 3 starts executing. More specifically, memory load 3 will start its execution only after the lfence instruction at 2 <strong>retires</strong>. Thus, there is now execution ordering between 1 and 3.</p>
+<ol start="2">
+<li>Store fence(sfence instruction) - sfence is store fence or memory store barrier. This works in almost the same way as lfence, except that it specifically orders memory store operations instead of load operations. The sample assembly code below shows us sfence in action, ordering the execution memory stores-</li>
+</ol>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-asm" data-lang="asm"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">1.</span> <span style="color:#a6e22e">mov</span> <span style="color:#66d9ef">QWORD</span>[<span style="color:#66d9ef">rbp-0x18</span>], <span style="color:#66d9ef">rax</span>
+</span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">2.</span> <span style="color:#a6e22e">sfence</span>
+</span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">3.</span> <span style="color:#a6e22e">mov</span> <span style="color:#66d9ef">QWORD</span>[<span style="color:#66d9ef">rbp</span> - <span style="color:#ae81ff">0x28</span>], <span style="color:#66d9ef">rbx</span>
+</span></span></code></pre></div><ol start="3">
+<li>Memory fence(mfence instruction) - This is the full memory barrier. This deals with both load and store memory operations. mfence ensures that all memory operations occuring before it will complete before any memory operation after it starts.</li>
+</ol>
+<p>Now, as mentioned before, rdtsc is non serializing. Therefore, it must be paired with a fencing instruction in order to serialize instructions around it and ensure it is executed in the right order. Now,the question is which fence is suitable here? It is <strong>lfence</strong> . There is another detail about lfence - lfence actually does a bit more than just serializing loads,
+<strong>it serializes the entire instruction pipeline</strong>. This is because Intel and AMD have designed it in this way, it serializes not just memory loads, but also register-register loads as well, including reading the TSC register. <strong>sfence</strong> only serializes memory stores and it does not have any effect on the instruction pipeline, so it simply does not do the job here.
+<strong>mfence</strong> can also be used, but because it deals with both loads and stores, serializing memory stores adds overhead and introduces noise in the measured time. Thus, <strong>lfence</strong> is the choice for the memory barrier in this situation.</p>
+<h3 id="the-accurate-stopwatch">The Accurate Stopwatch<a hidden class="anchor" aria-hidden="true" href="#the-accurate-stopwatch">#</a></h3>
+<p>With the knowledge of fences, we can improve our timer and make it accurate like this -</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">uint64_t</span> <span style="color:#a6e22e">measure_access_time</span>(<span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> target_memaddr)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">uint64_t</span> end<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>,start<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>	
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">//Serialize the instruction pipeline. Finish all reads and then read the start timestamp.
+</span></span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">_mm_lfence</span>();
+</span></span><span style="display:flex;"><span>	start <span style="color:#f92672">=</span> <span style="color:#a6e22e">__rdtsc</span>(); <span style="color:#75715e">// Read TSC for start.
+</span></span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">_mm_lfence</span>(); <span style="color:#75715e">//Wait for TSC read to finish. Do not start memory read until then.
+</span></span></span><span style="display:flex;"><span>	
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">volatile</span> <span style="color:#66d9ef">char</span> x <span style="color:#f92672">=</span> <span style="color:#f92672">*</span>target_memaddr; <span style="color:#75715e">// Read the target memory.
+</span></span></span><span style="display:flex;"><span>	
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">_mm_lfence</span>(); <span style="color:#75715e">// Wait for memory read to finish. Do not read end timestamp until then.
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">//Read the end timestamp
+</span></span></span><span style="display:flex;"><span>	end <span style="color:#f92672">=</span> <span style="color:#a6e22e">__rdtsc</span>();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> (end <span style="color:#f92672">-</span> start);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The fences are available as instrinsics - <code>_mm_lfence()</code> , <code>_mm_sfence()</code> and <code>_mm_mfence()</code>. The full C code to test this out is as -</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdio.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;x86intrin.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdint.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">uint64_t</span> <span style="color:#a6e22e">measure_access_time</span>(<span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> target_memaddr)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">uint64_t</span> end<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>,start<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">//Serialize the instruction pipeline. Finish all reads and then read the start timestamp.
+</span></span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">_mm_lfence</span>();
+</span></span><span style="display:flex;"><span>	start <span style="color:#f92672">=</span> <span style="color:#a6e22e">__rdtsc</span>(); <span style="color:#75715e">// Read TSC for start.
+</span></span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">_mm_lfence</span>(); <span style="color:#75715e">//Wait for TSC read to finish. Do not start memory read until then.
+</span></span></span><span style="display:flex;"><span>	
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">volatile</span> <span style="color:#66d9ef">char</span> x <span style="color:#f92672">=</span> <span style="color:#f92672">*</span>target_memaddr; <span style="color:#75715e">// Read the target memory.
+</span></span></span><span style="display:flex;"><span>	
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">_mm_lfence</span>(); <span style="color:#75715e">// Wait for memory read to finish. Do not read end timestamp until then.
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">//Read the end timestamp
+</span></span></span><span style="display:flex;"><span>	end <span style="color:#f92672">=</span> <span style="color:#a6e22e">__rdtsc</span>();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> (end <span style="color:#f92672">-</span> start);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> buf[<span style="color:#ae81ff">128</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> start <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>,end<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">//Flush the cache lines to force memory read.
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">_mm_clflush</span>(buf);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">_mm_clflush</span>(<span style="color:#f92672">&amp;</span>buf[<span style="color:#ae81ff">64</span>]);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> acc_time <span style="color:#f92672">=</span> <span style="color:#a6e22e">measure_access_time</span>(<span style="color:#f92672">&amp;</span>buf[<span style="color:#ae81ff">2</span>]);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;Memory access time = %li</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, acc_time);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>On compiling and running the above code, we see this output -</p>
+<p><img alt="Accurate Timer Result" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/accuratetimer.png"></p>
+<p>Now we see accurate results, memory reads are taking anywhere from 350 to some 1000 clock ticks to complete. Note that <code>_mm_clflush()</code> intrinsic is used to flush the target
+<code>buf</code> array&rsquo;s cache lines and empty them, so that the read is forced to go to RAM. <code>_mm_clflush()</code> will be seen again later when we use <strong>flush and reload</strong> technique, to prepare the target cache lines before the attack is done.</p>
+<p>Now we turn our attention to the second question - In all these memory accesses, when we look at the memory access time data, how can we say that yes, this was a cache hit or no, this went to RAM?</p>
+<h2 id="profiling-the-cache">Profiling The Cache<a hidden class="anchor" aria-hidden="true" href="#profiling-the-cache">#</a></h2>
+<p>When we read a memory address, the CPU gets the data from RAM and also places it in the cache. So if we want to see how long it takes to access the cache, we can create a memory buffer, read from a random chosen index within it, and then iterate over that memory buffer, timing each memory access and recording the time and then seeing the time of our chosen index. We will also, flush the cache before we access our target index. This is done to make sure that all target cache lines are empty prior to the read, so that stray cached values do not introduce false positives, that is, we see cache hits for memory locations we didn&rsquo;t even access in our read. This is basically the flush and reload strategy to probe the cache and prepare it so that only the specifically desired index is a cache hit.</p>
+<h3 id="flush-and-reload-technique">Flush and Reload Technique<a hidden class="anchor" aria-hidden="true" href="#flush-and-reload-technique">#</a></h3>
+<p>In flush and reload, we prepare the cache and time accesses as follows -</p>
+<ol>
+<li>Allocate a probe memory space which we want to probe.</li>
+<li>Flush the cache lines correspoinding to the target memory addresses using <code>_mm_clflush()</code>.</li>
+<li>Perform probe memory access of a specific element.</li>
+<li>Iterate over the probe memory space elements and measure access time for each.</li>
+<li>Analyse the timing data.</li>
+</ol>
+<p>The entire process can be visualized like so</p>
+<p><img alt="Flush and Reload" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/FlushNReloadBasicDark.svg"></p>
+<p>We load index 2 and then iterate over the probe memory. Because index 2 was read, it is already cached and when we read index 2 of the probe memory, it will be a cache hit and we will
+record a very small access time. But, if we try this with a simple char/int/long probe buffer, things will not quite play out as expected. This is because we have not accounted for one caching behaviour in our approach - <strong>prefetching</strong> . When we perform the probe memory access at index 2 after the flush, the CPU along with fetching index 2, will prefetch indices 3,4,5,6&hellip;. as well from memory and cache them(recall spatial locality). Thus, when you will access the probe buffer, indices 3,4,5 and so on will also be cache hits along with index 2
+and the outcome will be like this -</p>
+<p><img alt="Flush and Reload Prefetch Causing Noise" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/FlushNReloadPrefetch.svg"></p>
+<p>We do not want that. We want only index 2 to be a cache hit and not anything else. So, how do we get around this CPU prefetching behaviour?
+Well, one property about prefetching is that a <strong>prefetch does not cross page boundaries and is restricted within a single page</strong>. So, instead of allocating an array of bytes,
+we will allocate 256 contiguous pages using <code>mmap()</code> system call, as our probing memory and then for each index value 0 to 255, access the corresponding page. That way we can
+isolate target cache lines from each other and nullify the effect of prefetching on them, which gets rid of the noise and ensures that only our target index is a cache hit, while
+all the remaining probes access the RAM.</p>
+<p>With this change, our flush and reload technique will be like this -</p>
+<p><img alt="Flush and Reload Corrected" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/FlushNReloadCorrect.svg"></p>
+<p>Also, one extra step that we are going to do when we probe the probe memory to identify the cache hit is that we will <strong>not iterate sequentially over the probe pages</strong>. We will iterate over it out of order like for example page index 1,3,8,2 and so on. This is an extra measure that we take so as to not trigger any other prefetching behaviour which the
+CPU may take when we access page base addresses in sequence.</p>
+<h3 id="implementing-flush-and-reload">Implementing Flush and Reload<a hidden class="anchor" aria-hidden="true" href="#implementing-flush-and-reload">#</a></h3>
+<p>With the approach fully sorted out, we can now implement the above strategy in a program which will make an access at a target index of our choosing and then record the the memory
+access time for each index and save the timing data in a file which we will analyse using python.</p>
+<p>The <code>setup()</code> function below does two things - Pin the process to a specific CPU core so that we work with only one specific CPU core and its L1 cache and secondly, allocate 256 probe pages and return the base address pointer. <code>setup()</code> initializes the probe memory and will be called before starting the flush and reload.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> <span style="color:#a6e22e">setup</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//Pin the process to one CPU core. This is done because L1 cache is core specific and 
+</span></span></span><span style="display:flex;"><span>        <span style="color:#75715e">//we do not want to end up in a CPU core whose L1 cache we have not prepared.
+</span></span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">cpu_set_t</span> set;
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">CPU_ZERO</span>(<span style="color:#f92672">&amp;</span>set);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">CPU_SET</span>(<span style="color:#ae81ff">1</span>,<span style="color:#f92672">&amp;</span>set);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//Map 256 4 KB pages to use as our probe memory
+</span></span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> probe_memory_base <span style="color:#f92672">=</span> (<span style="color:#66d9ef">char</span><span style="color:#f92672">*</span>)<span style="color:#a6e22e">mmap</span>((<span style="color:#66d9ef">void</span><span style="color:#f92672">*</span>)<span style="color:#ae81ff">0x1337000</span> ,
+</span></span><span style="display:flex;"><span>                        <span style="color:#ae81ff">0x1000</span> <span style="color:#f92672">*</span> <span style="color:#ae81ff">256</span> ,
+</span></span><span style="display:flex;"><span>                        PROT_READ <span style="color:#f92672">|</span> PROT_WRITE ,
+</span></span><span style="display:flex;"><span>                        MAP_PRIVATE <span style="color:#f92672">|</span> MAP_ANONYMOUS ,
+</span></span><span style="display:flex;"><span>                        <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>,
+</span></span><span style="display:flex;"><span>                        <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>                        );
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span>(<span style="color:#f92672">!</span>probe_memory_base)
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;mmap() failed. Exiting...</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> probe_memory_base;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Next, we define the <code>flush_probe_cache_lines</code> function which takes in the probe memory base address as a parameter and then flushes the cache lines of the pages with a stride of
+0x1000 which is the page size. This function implements the &lsquo;flush&rsquo; part of our attack.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">flush_probe_cache_lines</span>(<span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> probe_memory_base)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">for</span>(<span style="color:#66d9ef">int</span> i<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span> ; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">256</span>; <span style="color:#f92672">++</span>i)
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">void</span><span style="color:#f92672">*</span> addr <span style="color:#f92672">=</span> (<span style="color:#66d9ef">void</span><span style="color:#f92672">*</span>)(probe_memory_base <span style="color:#f92672">+</span> (<span style="color:#ae81ff">0x1000</span> <span style="color:#f92672">*</span> i));
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">_mm_clflush</span>(addr);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As discussed previously, the implementation of the access time measuring - done by <code>measure_access_time</code> function is as follows. It takes in a target memory address to access and
+returns the time taken to complete the access.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#66d9ef">uint64_t</span> <span style="color:#a6e22e">measure_access_time</span>(<span style="color:#66d9ef">volatile</span> <span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> target_address)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">uint64_t</span> start , end;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">_mm_lfence</span>();
+</span></span><span style="display:flex;"><span>        start <span style="color:#f92672">=</span> <span style="color:#a6e22e">__rdtsc</span>();
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">_mm_lfence</span>();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">volatile</span> <span style="color:#66d9ef">char</span> x <span style="color:#f92672">=</span> <span style="color:#f92672">*</span>target_address;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">_mm_lfence</span>();
+</span></span><span style="display:flex;"><span>        end <span style="color:#f92672">=</span> <span style="color:#a6e22e">__rdtsc</span>();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> end <span style="color:#f92672">-</span> start;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Next, we have the probing logic, which probes the probe memory pages and gathers access time data. This is the <code>probe_the_probe_memory()</code> function. It takes in the probe memory
+base address and the timing data buffer address as arguments and it iterates over the probe pages, calculates the access time and records it in the timing data buffer. Note the
+<code>mix_i</code> index, which is calculated from the current index. This is done in order to make the access non-sequential as discussed in the previous section. The masking with 0xff ensures
+that <code>mix_i</code> does not go beyond 255.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">probe_the_probe_memory</span>(<span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> probe_memory_base , <span style="color:#66d9ef">uint64_t</span><span style="color:#f92672">*</span> access_time_array)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">for</span>(<span style="color:#66d9ef">int</span> i<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span> ; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">256</span> ; <span style="color:#f92672">++</span>i)
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">int</span> mix_i <span style="color:#f92672">=</span> ((i <span style="color:#f92672">*</span> <span style="color:#ae81ff">167</span>) <span style="color:#f92672">+</span> <span style="color:#ae81ff">13</span>) <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xFF</span>;
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> addr <span style="color:#f92672">=</span> probe_memory_base <span style="color:#f92672">+</span> (<span style="color:#ae81ff">0x1000</span> <span style="color:#f92672">*</span> mix_i);
+</span></span><span style="display:flex;"><span>                access_time_array[mix_i] <span style="color:#f92672">=</span> <span style="color:#a6e22e">measure_access_time</span>(addr);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Now we have the timing data saving logic, implemented in the <code>serialize_timing_data_to_file()</code> function. This takes a file name and the timing data buffer with the recorded access
+times and saves it in the file by serializing it in JSON format. The <code>access_times</code> key in the JSON object holds the list of access times that were recorded as its value.
+We will process this file after running this, using a python script.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">serialize_timing_data_to_file</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> filename , <span style="color:#66d9ef">uint64_t</span><span style="color:#f92672">*</span> time_array)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>        FILE<span style="color:#f92672">*</span> fptr <span style="color:#f92672">=</span> <span style="color:#a6e22e">fopen</span>(filename , <span style="color:#e6db74">&#34;w&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span>(<span style="color:#f92672">!</span>fptr)
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;Error opening output data file.&#34;</span>);
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">return</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">fprintf</span>(fptr, <span style="color:#e6db74">&#34;{</span><span style="color:#ae81ff">\n\t</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">fprintf</span>(fptr,<span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\&#34;</span><span style="color:#e6db74">access_times</span><span style="color:#ae81ff">\&#34;</span><span style="color:#e6db74"> : [&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">for</span>(<span style="color:#66d9ef">int</span> i<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span> ; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">256</span>; <span style="color:#f92672">++</span>i)
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">fprintf</span>(fptr , <span style="color:#e6db74">&#34;%lli&#34;</span> , time_array[i]);
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">if</span>(i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">255</span>) <span style="color:#a6e22e">fprintf</span>(fptr , <span style="color:#e6db74">&#34;,&#34;</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">fprintf</span>(fptr,<span style="color:#e6db74">&#34;]</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">}&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">fclose</span>(fptr);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Also, just a small detail. There is another helper function called <code>ensure_probe_memory_pages_mapped()</code> function. This function ensures that the probe memory pages are committed and
+backed by physical pages by writing to it. <code>mmap()</code> only reserves the virtual address space for the probe memory, but pages are not committed until they are accessed. So before
+starting the flush and reload, we call this function to ensure the probe memory is mapped, in order to get more uniform timing data, and accesses do not take very long due to
+page faults.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">ensure_probe_memory_pages_mapped</span>(<span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> probe_memory_base)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">for</span>(<span style="color:#66d9ef">int</span> i<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">256</span>; <span style="color:#f92672">++</span>i)
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> addr <span style="color:#f92672">=</span> probe_memory_base <span style="color:#f92672">+</span> (<span style="color:#ae81ff">0x1000</span> <span style="color:#f92672">*</span> i);
+</span></span><span style="display:flex;"><span>                <span style="color:#f92672">*</span>addr <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Putting all these together, we can implement the flush and reload technique in the <code>main()</code> function.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">uint64_t</span> timing_data[<span style="color:#ae81ff">256</span>] <span style="color:#f92672">=</span> {<span style="color:#ae81ff">0</span>}; <span style="color:#75715e">//Timing data buffer
+</span></span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">int</span> target_index <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x41</span>;  <span style="color:#75715e">// Target index 65
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//Initial setup - Allocate probe memory pages and ensure they are committed
+</span></span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> probe_memory_base <span style="color:#f92672">=</span> <span style="color:#a6e22e">setup</span>();
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">ensure_probe_memory_pages_mapped</span>(probe_memory_base);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//Probe address corresponding to target_index
+</span></span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">volatile</span> <span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> addr <span style="color:#f92672">=</span> chall_probe_memory_base <span style="color:#f92672">+</span> (target_index <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x1000</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//Flush cache lines
+</span></span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">flush_probe_cache_lines</span>(probe_memory_base);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//Reload data from the target page
+</span></span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">volatile</span> <span style="color:#66d9ef">char</span> x <span style="color:#f92672">=</span> <span style="color:#f92672">*</span>addr;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// Probe the probe pages and collect timing data
+</span></span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">probe_the_probe_memory</span>(probe_memory_base , timing_data);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">//Serialize the timing data to the JSON file
+</span></span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">serialize_timing_data_to_file</span>(<span style="color:#e6db74">&#34;./probe_access_times.json&#34;</span> , timing_data);
+</span></span><span style="display:flex;"><span>        
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">puts</span>(<span style="color:#e6db74">&#34;Flush and Reload Complete. Check the JSON file.&#34;</span>);
+</span></span><span style="display:flex;"><span>        
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>You can find the full program over <a href="https://github.com/0xssriv/microarch_attacks/blob/main/part2/cache_profiler.c">here</a>. It is named cache_profiler.c . On compiling and running the above program, we get this result.</p>
+<p><img alt="Memory timing data" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/TimingDataList.png"></p>
+<p>As we see above, when we see the file contents, we see the array of access time data in JSON format. Now, lets analyse the data.</p>
+<h3 id="analysing-the-timing-data">Analysing the Timing Data<a hidden class="anchor" aria-hidden="true" href="#analysing-the-timing-data">#</a></h3>
+<p>We will process the timing data above by deserializing the JSON into a python dictionary. From there we will extract the timing data list and graph it using matplotlib and also
+compute some metrics to get an idea of the data trends of the access times.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">import</span> sys
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> json
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> matplotlib <span style="color:#f92672">import</span> pyplot <span style="color:#66d9ef">as</span> plt
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">with</span> open(sys<span style="color:#f92672">.</span>argv[<span style="color:#ae81ff">1</span>] , <span style="color:#e6db74">&#34;r&#34;</span>) <span style="color:#66d9ef">as</span> f:
+</span></span><span style="display:flex;"><span>    timing_data <span style="color:#f92672">=</span> json<span style="color:#f92672">.</span>load(f)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>y_axis_access_times <span style="color:#f92672">=</span> timing_data[<span style="color:#e6db74">&#39;access_times&#39;</span>]
+</span></span><span style="display:flex;"><span>x_axis_index <span style="color:#f92672">=</span> list(range(len(y_axis_access_times)))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>plt<span style="color:#f92672">.</span>xlabel(<span style="color:#e6db74">&#34;Index&#34;</span>)
+</span></span><span style="display:flex;"><span>plt<span style="color:#f92672">.</span>ylabel(<span style="color:#e6db74">&#34;Access Time&#34;</span>)
+</span></span><span style="display:flex;"><span>plt<span style="color:#f92672">.</span>title(<span style="color:#e6db74">&#34;CPU Memory Access Profiling&#34;</span>)
+</span></span><span style="display:flex;"><span>plt<span style="color:#f92672">.</span>grid(<span style="color:#66d9ef">True</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>plt<span style="color:#f92672">.</span>plot(x_axis_index , y_axis_access_times)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>least_access_time <span style="color:#f92672">=</span> min(y_axis_access_times)
+</span></span><span style="display:flex;"><span>idx_of_min_access <span style="color:#f92672">=</span> [idx <span style="color:#66d9ef">for</span> idx,t <span style="color:#f92672">in</span> enumerate(y_axis_access_times) <span style="color:#66d9ef">if</span> t <span style="color:#f92672">==</span> least_access_time][<span style="color:#ae81ff">0</span>]
+</span></span><span style="display:flex;"><span>average_acc_time <span style="color:#f92672">=</span> sum(y_axis_access_times)<span style="color:#f92672">/</span>len(y_axis_access_times)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>print(<span style="color:#e6db74">f</span><span style="color:#e6db74">&#34;Least access time is at index </span><span style="color:#e6db74">{</span>idx_of_min_access<span style="color:#e6db74">}</span><span style="color:#e6db74"> and is </span><span style="color:#e6db74">{</span>least_access_time<span style="color:#e6db74">}</span><span style="color:#e6db74"> CPU ticks.&#34;</span>)
+</span></span><span style="display:flex;"><span>print(<span style="color:#e6db74">f</span><span style="color:#e6db74">&#34;Average access time = </span><span style="color:#e6db74">{</span>average_acc_time<span style="color:#e6db74">}</span><span style="color:#e6db74">&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>plt<span style="color:#f92672">.</span>show()
+</span></span></code></pre></div><p>On running the script, we see this result and graph.</p>
+<p><img alt="script output" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/script_output.png"></p>
+<p>We see that the least access time is 60 CPU clock ticks and it occurs exactly at our target index 65(0x41). Now that by itself doesn&rsquo;t tell much .But, on seeing this least access time in the bigger context of the access times of the other indices, we begin to see something interesting. Take a look at the graph that is plotted. The y-axis is the access time and
+the x-axis is the index.</p>
+<p><img alt="AccessGraph" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/AccessGraph.png"></p>
+<p>Notice the single sharp dip which goes below 100 ticks between indices 50 to 100. The red arrow points to that lowest dip. We know that this is 60 clock ticks and it happens at index
+65 which is the target index we chose in our program. No other index has its access time below 100. The average memory access time comes to be about 270 clock ticks as calculated.
+Now if you see, the highest access times come out to be between 700 to 900 as seen by those upward spikes. And the consistent sequence of small access times are seen to be close to 200 clock ticks with a few of these being not that below 200, they are like 170 180ish. But there is this one single outlier, in all of these 256 readings, that has its access time below
+100 and is exceptionally lesser than the rest, and that outlier is at our target index which we reloaded after flushing the cache.</p>
+<p>Now, because we flushed all the probe cache lines, reloaded the data at our target index page which causes it to be cached, and then probed the probe memory again, we know that in all
+those series of probings done, the cache hit was only at our target index, which has a drastically less time. The graph indeed clearly shows us that. No other index was cached and they
+have a much higher access time as they were certainly read from RAM. So, we have just visualized what a cache hit looks like! In all that noisy data of memory access times, we
+got a clear outlier that screams &lsquo;Cache Hit&rsquo;.</p>
+<h3 id="the-cache-is-an-oracle">The Cache is an Oracle!<a hidden class="anchor" aria-hidden="true" href="#the-cache-is-an-oracle">#</a></h3>
+<p>The above experiment also gives us an idea to just look at the access time and conclude whether it was a cache hit or a cache miss. Because only the cache hit has its access time
+in two digits, we can say that the cache hit threshold for the system is 100 clock ticks.</p>
+<p>If access time =&gt; 100 then <strong>Cache Miss</strong> and RAM was accessed!
+If access time &lt; 100 Then <strong>Cache Hit</strong> and the cache was accessed!</p>
+<p>To get an idea of the numbers on your machine, you can repeat this profiling experiment on your machine multiple times. In my case, some of my runs showed a cache hit time of
+80 instead of 60 but it never went above 100 in all my runs, and I could settle on the cache hit threshold to be 100 clock ticks.</p>
+<p>The profiling experiment shows us how the cache can be used as an oracle of information, because by just looking at the access time and checking it against the threshold we can
+conclude if data is either present or absent in the cache and in turn, this tells us whether that memory access was made before or not!</p>
+<h2 id="weaponizing-the-cache">Weaponizing The Cache<a hidden class="anchor" aria-hidden="true" href="#weaponizing-the-cache">#</a></h2>
+<p>Now, we know how to check if memory accesses are cache hits or cache misses from access time but how does that help us? Well, think about how we had a target index and we accessed it
+and then we were able to tell from the access time itself on the graph and in our python data processing script that the cache hit was at our target index 65 and nowhere else.
+There exactly lies our answer! Say we want to know what some secret value is, but we cannot know it directly. So, what do we do? We create some probe memory which we control and
+then use that secret value as an index into our probe memory to reload it and then probe the probe memory. Now, we see the timing data and depending on the access time, we can tell
+which index was a cache hit. Because the secret value was used as the index, the probing would give away the secret!</p>
+<p><img alt="Cache as a Side Channel" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/CacheLeaksBytes.svg"></p>
+<h3 id="cache-me-if-you-can">Cache Me If You Can!<a hidden class="anchor" aria-hidden="true" href="#cache-me-if-you-can">#</a></h3>
+<p>To illustrate how the cache serves as a side channel which discloses information as shown above, lets play a guessing game. We will generate a random byte and try to find it.
+Now of course we can simply generate and print out the byte, but we will not do that. Rather, we will set up our probing apparatus and use the cache to disclose this value via Flush and Reload.</p>
+<p>The guessing game program is very similar to the profiler program, but there is another newer function <code>get_hot_probe_cache_line()</code> . This function takes the timing data and checks
+each access time to see which one is below the CACHE_HIT_THRESHOLD (100 as seen before) to identify the index at which the cache hit occured, and this would be the secret value we
+are looking for.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">get_hot_probe_cache_line</span>(<span style="color:#66d9ef">uint64_t</span><span style="color:#f92672">*</span> access_time_array)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">int</span> hot_index<span style="color:#f92672">=-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">for</span>(<span style="color:#66d9ef">int</span> i<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">256</span>; <span style="color:#f92672">++</span>i)
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">if</span>(access_time_array[i] <span style="color:#f92672">&lt;</span> CACHE_HIT_THRESHOLD)
+</span></span><span style="display:flex;"><span>                {
+</span></span><span style="display:flex;"><span>                        hot_index <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>                }
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> hot_index;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The <code>main()</code> function is as follows -</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> probe_memory_base <span style="color:#f92672">=</span> <span style="color:#a6e22e">setup</span>();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">srand</span>(<span style="color:#a6e22e">time</span>(NULL));
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">uint64_t</span> timing_data[<span style="color:#ae81ff">256</span>] <span style="color:#f92672">=</span> {CACHE_HIT_THRESHOLD};
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">int</span> secret_byte <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x2a</span> <span style="color:#f92672">+</span> (<span style="color:#a6e22e">rand</span>() <span style="color:#f92672">%</span> <span style="color:#ae81ff">86</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">ensure_probe_memory_pages_mapped</span>(probe_memory_base);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">volatile</span> <span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> addr <span style="color:#f92672">=</span> probe_memory_base <span style="color:#f92672">+</span> (secret_byte <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x1000</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">flush_probe_cache_lines</span>(probe_memory_base);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">volatile</span> <span style="color:#66d9ef">char</span> x <span style="color:#f92672">=</span> <span style="color:#f92672">*</span>addr;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">probe_the_probe_memory</span>(probe_memory_base , timing_data);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">int</span> guessed_index <span style="color:#f92672">=</span> <span style="color:#a6e22e">get_hot_probe_cache_line</span>(timing_data);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;Guessed character = 0x%02x (%c)</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span> , guessed_index , (<span style="color:#66d9ef">char</span>)guessed_index);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;Secret character = 0x%02x (%c)</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span> , secret_byte, (<span style="color:#66d9ef">char</span>)secret_byte);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>As you can see, it is not very different from our profiler. At the last, we get the guessed byte value and print it along with the actual secret character to see if they match.
+Also, you see that the secret byte is from 0x2a to 0x80. Is is not necessary to do that. This is just done so that the random characters are printable for the most part.
+You can alternatively write <code>int secret_byte = rand() &amp; 0xff</code> if you want.</p>
+<p>The full program can be found <a href="https://github.com/0xssriv/microarch_attacks/blob/main/part2/guessing_game.c">here</a> in guessing_game.c</p>
+<p>On compiling and running the above program, we see this</p>
+<p><img alt="Guessing Game Result" loading="lazy" src="/posts/cpu_side_channel_attacks/part2/guessing_game.png"></p>
+<p>We see that on running it a couple of times, we consistently guess the generated character correctly! There was one instance where our guess was 0xffffffff and we failed to guess.
+That is why we do not do such attacks just once, but rather repeat it multiple number of times to see which guess has the most frequency.</p>
+<h2 id="conclusion">Conclusion<a hidden class="anchor" aria-hidden="true" href="#conclusion">#</a></h2>
+<p>We have seen in depth, the CPU cache and more importantly, how the cache becomes an oracle and a side channel of information, through which we can indirectly know data which
+we were never supposed to know. A thorough understanding of how timing based cache side channel attacks disclose information is essential to understanding how attacks like meltdown
+and spectre work, and I hope this blog has been helpful to you in understanding it. In the next part, we will look at Meltdown.</p>
+<h2 id="references">References<a hidden class="anchor" aria-hidden="true" href="#references">#</a></h2>
+<ul>
+<li><a href="https://www.youtube.com/watch?v=zF4VMombo7U">https://www.youtube.com/watch?v=zF4VMombo7U</a></li>
+<li><a href="https://www.youtube.com/watch?v=7yrK_9PderQ">https://www.youtube.com/watch?v=7yrK_9PderQ</a></li>
+<li><a href="https://meltdownattack.com/meltdown.pdf">https://meltdownattack.com/meltdown.pdf</a> (Sections 2.3 and 3)</li>
+</ul>
+<p><strong>Next</strong> : <a href="">CPU Side Channel Attacks Part III - Meltdown</a></p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">0xssriv&#39;s Writeups</a></span> · 
+
+    
+    
+    <span>
+        Powered by
+        <a href="https://gohugo.io/?utm_source=papermod" rel="noopener" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" id="top-link" class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up">
+        <polyline points="17 11 12 6 7 11"></polyline>
+        <polyline points="17 18 12 13 7 18"></polyline>
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var toplink = document.getElementById("top-link");
+    window.onscroll = function () {
+        const scrollThreshold = window.innerHeight;
+        if (document.body.scrollTop > scrollThreshold || document.documentElement.scrollTop > scrollThreshold) {
+            toplink.classList.remove("hidden");
+        } else {
+            toplink.classList.add("hidden");
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>
