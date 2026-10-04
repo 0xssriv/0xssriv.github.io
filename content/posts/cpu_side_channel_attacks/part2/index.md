@@ -432,7 +432,7 @@ int main()
         ensure_probe_memory_pages_mapped(probe_memory_base);
 
         //Probe address corresponding to target_index
-        volatile char* addr = chall_probe_memory_base + (target_index * 0x1000);
+        volatile char* addr = probe_memory_base + (target_index * 0x1000);
 
         //Flush cache lines
         flush_probe_cache_lines(probe_memory_base);
@@ -528,17 +528,26 @@ conclude if data is either present or absent in the cache and in turn, this tell
 ## Weaponizing The Cache
 
 Now, we know how to check if memory accesses are cache hits or cache misses from access time but how does that help us? Well, think about how we had a target index and we accessed it 
-and then we were able to tell from the access time itself on the graph and in our python data processing script that the cache hit was at our target index 65 and nowhere else.
-There exactly lies our answer! Say we want to know what some secret value is, but we cannot know it directly. So, what do we do? We create some probe memory which we control and
-then use that secret value as an index into our probe memory to reload it and then probe the probe memory. Now, we see the timing data and depending on the access time, we can tell
-which index was a cache hit. Because the secret value was used as the index, the probing would give away the secret!
+and then we were able to tell from the access time itself on the graph and in our python data processing script that the cache hit was at our target index 65 and nowhere else. Lets 
+build upon that. Say we are in this situation where we know a memory address which holds a sensitive or forbidden value which we are not allowed to see - like for example, data at 
+a kernel address from userspace or the address of a cryptographic key stored securely in another process. We do not have the .Also, lets say we have the capability to control a 
+process and we are able to allocate and use memory as desired, so we can allocate probe memory pages. How do we disclose the first byte at such an address? Because the address of the 
+forbidden value is known, we can 'use' the byte value stored in it to index into the probe memory pages that we allocate prior to this and after that, we profile the probe cache lines to see at what index we have a cache hit based on the access time data, using our flush and reload strategy.
 
 ![Cache as a Side Channel](CacheLeaksBytes.svg)
 
+However, you will certainly still have a burning question - If the value stored at the address is forbidden, how are you using it? When you do that, you must segfault right? To answer this question, I must slightly get ahead of myself and tell you that the use of the 'forbidden' byte value as described above is in the **transient execution** of the probe memory 
+page access instruction during the reload step of Flush and Reload. Before instruction execution becomes concrete, instructions execute 'transiently' and during transient execution
+of the reload memory access, the forbidden byte from the memory address is **still read microarchitecturally** and then used within the transient execution of the reload instruction,
+which will access the RAM and cache the read data. When the transient execution of the reload step becomes concrete, an exception is thrown and we get a segfault. 
+This explanation is still quite handwavy, but do not worry, as the concept of **transient execution of instructions** will be discussed in depth in the next part of the blog series. 
+The main thing to understand is that due to the way CPUs execute instructions, the CPU can still read data from forbidden memory areas microarchitecturally and leave side effects, 
+but you never see the effects architecturally because the CPU throws an exception when it detects an access violation.
+
 ### Cache Me If You Can!
 
-To illustrate how the cache serves as a side channel which discloses information as shown above, lets play a guessing game. We will generate a random byte and try to find it.
-Now of course we can simply generate and print out the byte, but we will not do that. Rather, we will set up our probing apparatus and use the cache to disclose this value via Flush and Reload.
+To sort of simulate the situation described above and how data presence in the cache encodes information which enables its use as a side channel, lets play a guessing game. 
+We will generate a random byte and try to find it. Now of course we can simply generate and print out the byte, but we will not do that. Rather, we will set up our probing apparatus and use the cache to disclose this value via Flush and Reload and pretend that it is forbidden and we do not have the permissions to directly read it.
 
 The guessing game program is very similar to the profiler program, but there is another newer function `get_hot_probe_cache_line()` . This function takes the timing data and checks
 each access time to see which one is below the CACHE_HIT_THRESHOLD (100 as seen before) to identify the index at which the cache hit occured, and this would be the secret value we
@@ -612,6 +621,7 @@ and spectre work, and I hope this blog has been helpful to you in understanding 
 
 - https://www.youtube.com/watch?v=zF4VMombo7U
 - https://www.youtube.com/watch?v=7yrK_9PderQ
+- https://en.wikipedia.org/wiki/Memory_barrier
 - https://meltdownattack.com/meltdown.pdf (Sections 2.3 and 3) 
 
 **Next** : [CPU Side Channel Attacks Part III - Meltdown]({{< ref "" >}})
